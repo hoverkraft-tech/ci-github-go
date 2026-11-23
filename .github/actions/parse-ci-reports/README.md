@@ -41,7 +41,7 @@ Parse native reports, publish summaries and retain selected files in one artifac
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/.github/actions/parse-ci-reports@6a83ad7eda6b780f04c65007c9f48f0a7170ad01 # fix/enforce-lint-checks
+- uses: hoverkraft-tech/ci-github-go/.github/actions/parse-ci-reports@ae8d08a5dc73e48445e8e934c79422d42d526508 # fix/enforce-lint-checks
   with:
     # Validated absolute project directory.
     # This input is required.
