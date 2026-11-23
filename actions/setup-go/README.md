@@ -14,9 +14,38 @@
 
 ## Overview
 
-Install the declared Go toolchain, cache modules and verify dependencies. Each invocation targets one module; use a caller matrix for multiple modules.
+Install the project toolchain, cache modules and verify dependencies.
 
-See the [usage guide](../../docs/usage/README.md).
+Each invocation targets one module with a committed `go.mod` and `go.sum`
+when dependencies require it. Explicit `go-version` takes precedence;
+otherwise setup uses `go.mod`, including its `toolchain` directive.
+Pin a supported toolchain in the project. Explicit major/minor versions receive
+their latest patch releases.
+
+Setup runs `go mod download`, `go mod verify` and `go mod tidy -diff`.
+Metadata drift fails without rewriting files. `GOWORK=off` isolates the module
+and `GOTOOLCHAIN=local` prevents a matrix entry silently switching compilers.
+Use a caller matrix over `working-directory` for repositories with several modules.
+Set `install-dependencies: "false"` for runtime-only jobs or caller-managed dependencies;
+`go.mod` is still required. Working directories must stay inside the checkout.
+
+### Standalone setup
+
+Check out the project before setup. Use a Linux runner supporting Node.js 24
+actions and pin all actions from this repository to the same reviewed commit.
+Later lint, test and audit actions reuse this environment.
+
+```yaml
+steps:
+  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    with:
+      persist-credentials: false
+  - uses: hoverkraft-tech/ci-github-go/actions/setup-go@main
+    with:
+      working-directory: .
+```
+
+See the [continuous integration workflow](../../.github/workflows/continuous-integration.md) for orchestration and version matrices.
 
 <!-- overview:end -->
 <!-- usage:start -->
@@ -24,7 +53,7 @@ See the [usage guide](../../docs/usage/README.md).
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/setup-go@ff229dbaa59bd8c6272fdbbd0fae8285a4d6c960 # main
+- uses: hoverkraft-tech/ci-github-go/actions/setup-go@4972baa1144765ad7e861d58860b311b4806091b # main
   with:
     # Go module directory inside the checkout.
     # Default: `.`

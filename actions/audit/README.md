@@ -14,9 +14,23 @@
 
 ## Overview
 
-Run the official govulncheck against reachable dependencies and the selected Go standard library. Run setup-go first. This check requires network access to the vulnerability database.
+Check reachable vulnerabilities with the official govulncheck tool.
 
-See the [usage guide](../../docs/usage/README.md).
+The scan includes dependency and standard-library advisories for the selected
+Go toolchain. It requires network access to the current vulnerability database
+and propagates scanner failures. Dependency metadata is not rewritten.
+
+Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
+This action reuses the installed environment. Use the same reviewed commit SHA
+for both actions. Do not populate command inputs from untrusted pull request text.
+
+```yaml
+- uses: hoverkraft-tech/ci-github-go/actions/audit@main
+  with:
+    working-directory: .
+```
+
+See the [continuous integration workflow](../../.github/workflows/continuous-integration.md) for orchestration and version matrices.
 
 <!-- overview:end -->
 <!-- usage:start -->
@@ -24,7 +38,7 @@ See the [usage guide](../../docs/usage/README.md).
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/audit@ff229dbaa59bd8c6272fdbbd0fae8285a4d6c960 # main
+- uses: hoverkraft-tech/ci-github-go/actions/audit@4972baa1144765ad7e861d58860b311b4806091b # main
   with:
     # Go module directory.
     # Default: `.`

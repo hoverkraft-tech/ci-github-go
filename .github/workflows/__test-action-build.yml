@@ -1,0 +1,43 @@
+name: Internal - Test build action
+"on":
+  workflow_call: null
+permissions: {}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Arrange - Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Arrange - Install the project runtime and dependencies
+        uses: $/actions/setup-go
+        with:
+          working-directory: tests/go-project
+      - name: Act - Build all packages with defaults
+        uses: $/actions/build
+        with:
+          working-directory: tests/go-project
+      - name: Act - Build a custom output
+        uses: $/actions/build
+        with:
+          working-directory: tests/go-project
+          command: go build -mod=readonly -trimpath -o "$RUNNER_TEMP/fixture.a" .
+      - name: Assert - Custom command produced an archive
+        shell: bash
+        run: test -s "$RUNNER_TEMP/fixture.a"
+      - name: Act - Propagate a custom build failure
+        uses: $/actions/build
+        with:
+          working-directory: tests/go-project
+          command: exit 19
+        id: failed-build
+        continue-on-error: true
+      - name: Assert - Failed build fails the action
+        shell: bash
+        run: test "$OUTCOME" = failure
+        env:
+          OUTCOME: ${{ steps.failed-build.outcome }}

@@ -14,9 +14,40 @@
 
 ## Overview
 
-Run race-enabled Go tests through gotestsum, produce JUnit and native coverage, and retain reports after failures. Run setup-go first. Codecov requires id-token: write.
+Run Go tests with gotestsum, JUnit output and atomic coverage.
 
-See the [usage guide](../../docs/usage/README.md).
+Defaults enable `-race`, `-count=1` and a five-minute package timeout.
+The race detector requires CGO and a C compiler on a supported Linux runner;
+set `race: "false"` when unavailable. A trusted Bash `command` replaces defaults
+and must produce JUnit for test reporting and `coverage.out` for coverage.
+GitHub coverage uses native `go tool cover` summaries and retains `coverage.out`;
+the common report parser handles JUnit, not the native Go coverage format.
+
+Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
+This action reuses the installed environment. Use the same reviewed commit SHA
+for both actions. Do not populate command inputs from untrusted pull request text.
+
+```yaml
+- uses: hoverkraft-tech/ci-github-go/actions/test@main
+  with:
+    working-directory: .
+```
+
+### Reports
+
+Native reports are retained for seven days, including after command failures.
+Only report files are uploaded, with unique names for parallel calls. When no
+reports are produced, `report-artifact-id` is empty. GitHub summaries and
+annotations need only `contents: read`; individual PR comments are not created.
+Use the common [ci-reports workflow](https://github.com/hoverkraft-tech/ci-github-common/blob/main/.github/workflows/ci-reports.yml)
+for consolidated comments and set `report-group` to the outer calling job ID.
+
+`coverage: "github"` is the default. Set `coverage: "codecov"` and grant the
+job `id-token: write` for OIDC upload of `coverage.out`. An empty coverage
+value disables publication while retaining JUnit; collection is controlled by
+the command. Custom commands must produce the applicable report files.
+
+See the [continuous integration workflow](../../.github/workflows/continuous-integration.md) for orchestration and version matrices.
 
 <!-- overview:end -->
 <!-- usage:start -->
@@ -24,7 +55,7 @@ See the [usage guide](../../docs/usage/README.md).
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@ff229dbaa59bd8c6272fdbbd0fae8285a4d6c960 # main
+- uses: hoverkraft-tech/ci-github-go/actions/test@4972baa1144765ad7e861d58860b311b4806091b # main
   with:
     # Go module directory.
     # Default: `.`

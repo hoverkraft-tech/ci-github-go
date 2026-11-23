@@ -14,9 +14,25 @@
 
 ## Overview
 
-Compile all packages with read-only module metadata and trimmed paths. Run setup-go first. Override command to produce application-specific binaries.
+Compile Go packages without rewriting module metadata.
 
-See the [usage guide](../../docs/usage/README.md).
+The default is `go build -mod=readonly -trimpath ./...`. Use `command` to build
+a project binary, for example `go build -mod=readonly -trimpath -o dist/server ./cmd/server`.
+Commands are trusted Bash programs; failures fail the action. This action leaves
+outputs in the project directory. Use the reusable workflow's `build.artifact`
+option or an upload step to retain them. It does not publish releases.
+
+Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
+This action reuses the installed environment. Use the same reviewed commit SHA
+for both actions. Do not populate command inputs from untrusted pull request text.
+
+```yaml
+- uses: hoverkraft-tech/ci-github-go/actions/build@main
+  with:
+    working-directory: .
+```
+
+See the [continuous integration workflow](../../.github/workflows/continuous-integration.md) for orchestration and version matrices.
 
 <!-- overview:end -->
 <!-- usage:start -->
@@ -24,7 +40,7 @@ See the [usage guide](../../docs/usage/README.md).
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/build@ff229dbaa59bd8c6272fdbbd0fae8285a4d6c960 # main
+- uses: hoverkraft-tech/ci-github-go/actions/build@4972baa1144765ad7e861d58860b311b4806091b # main
   with:
     # Go module directory.
     # Default: `.`

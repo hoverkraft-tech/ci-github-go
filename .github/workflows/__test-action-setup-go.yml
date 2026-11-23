@@ -1,0 +1,46 @@
+name: Internal - Test setup-go action
+"on":
+  workflow_call: null
+permissions: {}
+jobs:
+  setup-go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Arrange - Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Act - Detect the runtime and install dependencies
+        uses: $/actions/setup-go
+        with:
+          working-directory: tests/go-project
+        id: setup
+      - name: Assert - Toolchain is isolated and metadata is unchanged
+        shell: bash
+        run: |
+          test "$(go env GOVERSION)" = "go$INSTALLED_VERSION"
+          test "$GOTOOLCHAIN" = local
+          test "$GOWORK" = off
+          git diff --exit-code -- tests/go-project/go.mod
+        env:
+          INSTALLED_VERSION: ${{ steps.setup.outputs.go-version }}
+      - name: Arrange - Module whose dependencies cannot be downloaded
+        shell: bash
+        run: |
+          cp -R tests/go-project .test-go-runtime
+          printf '\nrequire example.invalid/not-installed v0.0.0\n' >> .test-go-runtime/go.mod
+      - name: Act - Select a runtime without dependencies
+        uses: $/actions/setup-go
+        with:
+          working-directory: .test-go-runtime
+          go-version: "1.26"
+          install-dependencies: "false"
+      - name: Assert - Explicit version wins without installing modules
+        shell: bash
+        run: |
+          test "$(go env GOVERSION | cut -d. -f1,2)" = go1.26
+          grep -q 'example.invalid/not-installed' .test-go-runtime/go.mod
+          test ! -f .test-go-runtime/go.sum
