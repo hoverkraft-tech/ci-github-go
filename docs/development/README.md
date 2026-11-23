@@ -28,22 +28,25 @@ Nested Docker requires a host that supports privileged containers.
 
 The container runs development commands as `vscode` and waits for `make setup`
 to install dependencies before attaching. Run `make ci` in its terminal to execute
-the repository checks. The Go compiler matches the fixture toolchain. The editor
-can install its Go language tools when needed.
+the repository checks. The Go feature installs the compiler, golangci-lint and
+editor language tools.
 
-The [Dockerfile](../../.devcontainer/Dockerfile) pins the base and tool images.
-The generated feature lockfile pins installers. Dependabot updates these images
-and feature locks; Renovate maintains runtime versions in the configuration.
-Rebuild the container after changing its configuration, Dockerfile or lockfile.
+The container uses the Microsoft Debian base image directly and installs tools
+through Dev Container features. Dependabot maintains the features and their
+[lockfile](../../.devcontainer/devcontainer-lock.json). Feature defaults select
+tool versions when rebuilding. Rebuild after changing the configuration or lockfile.
 
 ## Coverage
 
 The Node tests execute workflow configuration directly to check matrix selection,
 disable switches and invalid input.
-[Action contract tests](../../tests/action-contracts.test.cjs) load the actual
-action metadata and execute its Bash commands and JavaScript. They check command
-quoting, failure propagation, setup preconditions and artifact selection without
-mocking language tools.
+Action contract tests live beside each action as `action.test.cjs`, including
+[setup](../../actions/setup-go/action.test.cjs),
+[lint](../../actions/lint/action.test.cjs), [test](../../actions/test/action.test.cjs)
+and [report parsing](../../.github/actions/parse-ci-reports/action.test.cjs).
+They execute the actual Bash and JavaScript from adjacent action metadata to
+check quoting, failure propagation, setup preconditions and artifact selection.
+`make test` discovers these files and the workflow configuration tests.
 
 `__test-workflow-continuous-integration.yml` calls the public workflow with real
 fixture versions and checks disabled behavior. Each action has a dedicated
@@ -56,10 +59,9 @@ language's arithmetic implementation.
 ## Documentation
 
 Edit action metadata or workflow header comments, then run `make docs`.
-The [reference template](../../.github/ci-dokumentor/reference.md) supplies section
-markers and scoped duplication comments. The same CI Dokumentor release as the
-shared `release-actions.yml` workflow fills those sections. Never edit generated
-action readmes or workflow reference files by hand.
+The same CI Dokumentor release as the shared `release-actions.yml` workflow
+updates the existing reference sections directly. Never edit generated action
+readmes or workflow reference files by hand.
 Usage belongs directly in generated action and workflow readmes. Put source
 guidance in action descriptions and workflow header comments so `make docs`
 preserves it. Contributor procedures belong here.
@@ -93,8 +95,8 @@ the full badge and wordmark on a white 1280 x 640 canvas; export it at those exa
 dimensions to regenerate `.github/social-preview.png` and inspect the result.
 
 Duplication checks include every repository source and reference file. Inline
-markers cover repeated generated API sections and repository boilerplate in the
-reference template. Action metadata marks only repeated setup and reporting
+markers cover repeated generated API sections and repository boilerplate in
+the references. Action metadata marks only repeated setup and reporting
 paragraphs; unique overview text and examples remain checked. The generator
 preserves these markers, and all Markdown sections still receive formatting and
 Markdown validation.

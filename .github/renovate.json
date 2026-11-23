@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
-  "enabledManagers": ["custom.regex", "nodenv", "devcontainer"],
+  "enabledManagers": ["custom.regex", "nodenv"],
   "semanticCommits": "enabled",
   "semanticCommitType": "build",
   "minimumReleaseAge": "7 days",
@@ -31,14 +31,6 @@
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "golangci/golangci-lint"
-    }
-  ],
-  "packageRules": [
-    {
-      "description": "Dependabot maintains Dev Container features and their lockfile.",
-      "matchManagers": ["devcontainer"],
-      "matchDepTypes": ["feature"],
-      "enabled": false
     }
   ]
 }
