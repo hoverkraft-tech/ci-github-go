@@ -56,7 +56,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/build@6a83ad7eda6b780f04c65007c9f48f0a7170ad01 # fix/enforce-lint-checks
+- uses: hoverkraft-tech/ci-github-go/actions/build@ae8d08a5dc73e48445e8e934c79422d42d526508 # fix/enforce-lint-checks
   with:
     # Go module directory.
     # Default: `.`
