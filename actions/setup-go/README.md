@@ -61,7 +61,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/setup-go@de6908ea83390fa937fd58ae67ce021839cf7638 # main
+- uses: hoverkraft-tech/ci-github-go/actions/setup-go@c78fc5df69258300e08b5017e1a7768cab4f2a03 # fix/enforce-lint-checks
   with:
     # Go module directory inside the checkout.
     # Default: `.`

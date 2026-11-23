@@ -29,14 +29,6 @@ Go toolchain. It requires network access to the current vulnerability database
 and propagates scanner failures. Dependency metadata is not rewritten.
 
 Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
-This action reuses the installed environment. Use the same reviewed commit SHA
-for both actions. Do not populate command inputs from untrusted pull request text.
-
-```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/audit@main
-  with:
-    working-directory: .
-```
 
 See the [continuous integration workflow](../../.github/workflows/continuous-integration.md) for orchestration and version matrices.
 
@@ -46,7 +38,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/audit@de6908ea83390fa937fd58ae67ce021839cf7638 # main
+- uses: hoverkraft-tech/ci-github-go/actions/audit@c78fc5df69258300e08b5017e1a7768cab4f2a03 # fix/enforce-lint-checks
   with:
     # Go module directory.
     # Default: `.`
