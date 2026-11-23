@@ -1,0 +1,36 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["custom.regex", "nodenv"],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "build",
+  "minimumReleaseAge": "7 days",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^actions/test/action\\.yml$/"],
+      "matchStrings": ["GOTESTSUM_VERSION: (?<currentValue>v[^\\s]+)"],
+      "datasourceTemplate": "go",
+      "depNameTemplate": "gotest.tools/gotestsum"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^actions/audit/action\\.yml$/"],
+      "matchStrings": ["GOVULNCHECK_VERSION: (?<currentValue>v[^\\s]+)"],
+      "datasourceTemplate": "go",
+      "depNameTemplate": "golang.org/x/vuln"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^actions/lint/action\\.yml$/",
+        "/^\\.github/workflows/continuous-integration\\.yml$/"
+      ],
+      "matchStrings": [
+        "golangci-lint-version:[\\s\\S]*?default: (?<currentValue>v[0-9.]+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "golangci/golangci-lint"
+    }
+  ]
+}

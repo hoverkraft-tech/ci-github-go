@@ -1,0 +1,69 @@
+name: Setup Go
+description: |
+  Install the declared Go toolchain, cache modules and verify dependencies. Each invocation targets one module; use a caller matrix for multiple modules.
+
+  See the [usage guide](../../docs/usage/README.md).
+author: hoverkraft
+branding:
+  icon: package
+  color: blue
+inputs:
+  working-directory:
+    description: Go module directory inside the checkout.
+    default: .
+  go-version:
+    description: Explicit Go version. Empty reads the go directive in this module's go.mod.
+    default: ""
+  install-dependencies:
+    description: Download and verify module dependencies. Disable for tooling-only jobs.
+    default: "true"
+outputs:
+  go-version:
+    description: Installed Go version.
+    value: ${{ steps.go.outputs.go-version }}
+runs:
+  using: composite
+  steps:
+    # Shared working-directory validation, kept at each standalone entry point.
+    # jscpd:ignore-start
+    - id: directory
+      uses: hoverkraft-tech/ci-github-common/actions/working-directory@66882b24f9f13e45a6541896a5a7c638cb91c94c
+      with:
+        working-directory: ${{ inputs.working-directory }}
+    # jscpd:ignore-end
+    - id: validate
+      shell: bash
+      working-directory: ${{ steps.directory.outputs.absolute-path }}
+      env:
+        INSTALL_DEPENDENCIES: ${{ inputs.install-dependencies }}
+      run: |
+        case "$INSTALL_DEPENDENCIES" in
+          true|false) ;;
+          *) echo 'install-dependencies must be true or false.' >&2; exit 1 ;;
+        esac
+        test -f go.mod || { echo 'Missing go.mod in working-directory.' >&2; exit 1; }
+    - id: go
+      uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+      with:
+        go-version: ${{ inputs.go-version }}
+        go-version-file: ${{ steps.directory.outputs.workspace-relative-path }}/go.mod
+        cache: ${{ inputs.install-dependencies == 'true' }}
+        cache-dependency-path: |
+          ${{ steps.directory.outputs.workspace-relative-path }}/go.sum
+          ${{ steps.directory.outputs.workspace-relative-path }}/go.mod
+    - id: environment
+      shell: bash
+      run: |
+        # Keep a matrix entry on the requested toolchain and module.
+        printf '%s\n' 'GOTOOLCHAIN=local' 'GOWORK=off' >> "$GITHUB_ENV"
+    - id: install
+      shell: bash
+      if: inputs.install-dependencies == 'true'
+      working-directory: ${{ steps.directory.outputs.absolute-path }}
+      env:
+        GOTOOLCHAIN: local
+        GOWORK: "off"
+      run: |
+        go mod download
+        go mod verify
+        go mod tidy -diff

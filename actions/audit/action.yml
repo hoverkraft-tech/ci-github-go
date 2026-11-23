@@ -1,0 +1,32 @@
+name: Audit Go
+description: |
+  Run the official govulncheck against reachable dependencies and the selected Go standard library. Run setup-go first. This check requires network access to the vulnerability database.
+
+  See the [usage guide](../../docs/usage/README.md).
+author: hoverkraft
+branding:
+  icon: package
+  color: blue
+inputs:
+  working-directory:
+    description: Go module directory.
+    default: .
+runs:
+  using: composite
+  steps:
+    # Shared working-directory validation, kept at each standalone entry point.
+    # jscpd:ignore-start
+    - id: directory
+      uses: hoverkraft-tech/ci-github-common/actions/working-directory@66882b24f9f13e45a6541896a5a7c638cb91c94c
+      with:
+        working-directory: ${{ inputs.working-directory }}
+    # jscpd:ignore-end
+    - id: audit
+      shell: bash
+      working-directory: ${{ steps.directory.outputs.absolute-path }}
+      env:
+        GOVULNCHECK_VERSION: v1.10.0
+        GOTOOLCHAIN: local
+        GOWORK: "off"
+      run: |
+        go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" ./...

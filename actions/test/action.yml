@@ -1,0 +1,135 @@
+name: Test Go
+description: |
+  Run race-enabled Go tests through gotestsum, produce JUnit and native coverage, and retain reports after failures. Run setup-go first. Codecov requires id-token: write.
+
+  See the [usage guide](../../docs/usage/README.md).
+author: hoverkraft
+branding:
+  icon: package
+  color: blue
+inputs:
+  working-directory:
+    description: Go module directory.
+    default: .
+  command:
+    description: Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.
+    default: ""
+  race:
+    description: Enable the race detector for the default command. Requires CGO and a C compiler.
+    default: "true"
+  coverage:
+    description: "Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command."
+    default: github
+  report-group:
+    description: Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.
+    default: ""
+outputs:
+  report-artifact-id:
+    description: Native report artifact ID. Empty when no reports were produced.
+    value: ${{ steps.upload-reports.outputs.artifact-id }}
+runs:
+  using: composite
+  steps:
+    # Shared working-directory validation, kept at each standalone entry point.
+    # jscpd:ignore-start
+    - id: directory
+      uses: hoverkraft-tech/ci-github-common/actions/working-directory@66882b24f9f13e45a6541896a5a7c638cb91c94c
+      with:
+        working-directory: ${{ inputs.working-directory }}
+    # jscpd:ignore-end
+    - id: validate
+      shell: bash
+      env:
+        RACE: ${{ inputs.race }}
+        COVERAGE: ${{ inputs.coverage }}
+      run: |
+        case "$RACE" in true|false) ;; *) echo 'race must be true or false.' >&2; exit 1 ;; esac
+        case "$COVERAGE" in github|codecov|'') ;; *) echo 'coverage must be github, codecov or empty.' >&2; exit 1 ;; esac
+    - id: run
+      shell: bash
+      working-directory: ${{ steps.directory.outputs.absolute-path }}
+      env:
+        COMMAND: ${{ inputs.command }}
+        RACE: ${{ inputs.race }}
+        GOTESTSUM_VERSION: v1.13.0
+        GOTOOLCHAIN: local
+        GOWORK: "off"
+        CI: "true"
+      run: |
+        if [ -n "$COMMAND" ] && ! [[ "$COMMAND" =~ [^[:space:]] ]]; then
+          echo "command must not contain only whitespace." >&2
+          exit 1
+        fi
+        if [ -n "$COMMAND" ]; then
+          bash --noprofile --norc -e -u -o pipefail -c "$COMMAND"
+          exit
+        fi
+        args=(-mod=readonly -count=1 -timeout=5m -covermode=atomic -coverprofile=coverage.out)
+        if [ "$RACE" = true ]; then args+=(-race); fi
+        go run "gotest.tools/gotestsum@$GOTESTSUM_VERSION" --junitfile=junit.xml --format=testname -- "${args[@]}" ./...
+    - name: Report test results
+      id: reports
+      if: ${{ !cancelled() && steps.run.outcome != 'skipped' }}
+      uses: hoverkraft-tech/ci-github-common/actions/quality/parse-ci-reports@66882b24f9f13e45a6541896a5a7c638cb91c94c
+      with:
+        working-directory: ${{ steps.directory.outputs.absolute-path }}
+        report-paths: |-
+          auto:test
+          !**/.venv/**
+          !**/.git/**
+          !**/.cache/**
+          !**/vendor/**
+        report-name: Go test results
+        output-format: annotations,summary,markdown
+    - id: go-coverage
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && inputs.coverage == 'github' }}
+      env:
+        DIRECTORY: ${{ steps.directory.outputs.absolute-path }}
+      with:
+        script: |
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const file = path.join(process.env.DIRECTORY, 'coverage.out');
+          if (!fs.existsSync(file)) return;
+          const result = await exec.getExecOutput('go', ['tool', 'cover', '-func=' + file], {cwd: process.env.DIRECTORY});
+          await core.summary.addHeading('Go coverage').addCodeBlock(result.stdout, 'text').write();
+    - id: report-artifact
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+      if: ${{ !cancelled() && steps.run.outcome != 'skipped' }}
+      env:
+        DIRECTORY: ${{ steps.directory.outputs.absolute-path }}
+        REPORT_FILES: ${{ steps.reports.outputs.parsed-files }}
+        REPORT_GROUP: ${{ inputs.report-group || github.job }}
+        NATIVE_COVERAGE: ${{ inputs.coverage == 'github' }}
+      with:
+        script: |
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const files = JSON.parse(process.env.REPORT_FILES || '[]');
+          if (process.env.NATIVE_COVERAGE === 'true') {
+            const coverage = path.join(process.env.DIRECTORY, 'coverage.out');
+            if (fs.existsSync(coverage)) files.push(coverage);
+          }
+          if (!files.length) return;
+          const group = process.env.REPORT_GROUP;
+          if (!/^[\w-]+$/.test(group)) throw new Error('report-group must be a job ID.');
+          core.setOutput('files', files.join('\n'));
+          core.setOutput('name', `ci-reports-${process.env.GITHUB_RUN_ATTEMPT}-${group}-${require('node:crypto').randomUUID()}`);
+    - id: upload-reports
+      name: Retain native reports
+      if: ${{ !cancelled() && steps.report-artifact.outputs.files != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: ${{ steps.report-artifact.outputs.name }}
+        path: ${{ steps.report-artifact.outputs.files }}
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 7
+    - name: Upload coverage to Codecov
+      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && inputs.coverage == 'codecov' }}
+      uses: hoverkraft-tech/ci-github-common/actions/quality/codecov@66882b24f9f13e45a6541896a5a7c638cb91c94c
+      with:
+        working-directory: ${{ steps.directory.outputs.absolute-path }}
+        files: coverage.out
+        fail-ci-if-error: "true"

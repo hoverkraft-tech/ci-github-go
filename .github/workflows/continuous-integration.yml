@@ -1,0 +1,222 @@
+# Run opinionated language checks with project-owned configuration.
+# See the [usage guide](../../docs/usage/README.md).
+
+name: Go Continuous Integration
+"on":
+  workflow_call:
+    inputs:
+      runs-on:
+        description: JSON array of Linux runner labels for all jobs.
+        type: string
+        default: '["ubuntu-latest"]'
+      checks:
+        description: Enable all checks, including build or distribution checks.
+        type: boolean
+        default: true
+      working-directory:
+        description: One project directory inside the checkout. Use a caller matrix for multiple projects.
+        type: string
+        default: .
+      go-versions:
+        description: JSON array of Go versions. The last entry runs lint, audit and build and publishes coverage. Empty runs project detection once. An empty entry uses the project version.
+        type: string
+        default: ""
+      lint:
+        description: true for default checks, a trusted Bash command, or a JSON object with command. false, null or empty disables lint.
+        type: string
+        default: "true"
+      test:
+        description: true for default tests, a trusted Bash command, or a JSON object with command, coverage (`github`, `codecov` or empty), and race (boolean). false, null or empty disables tests. Coverage publication runs only on the last version; the command controls collection.
+        type: string
+        default: "true"
+      audit:
+        description: Check production dependencies for known vulnerabilities.
+        type: boolean
+        default: true
+      dependency-review:
+        description: Review dependency changes on pull requests. Requires GitHub dependency review availability.
+        type: boolean
+        default: true
+      build:
+        description: true for go build, a trusted Bash command, or a JSON object with command and artifact (one project-relative directory). false, null or empty disables build.
+        type: string
+        default: "true"
+      golangci-lint-version:
+        description: Pinned golangci-lint v2 release used by the lint action.
+        type: string
+        default: v2.15.0
+    outputs:
+      build-artifact-id:
+        description: Build artifact ID when build.artifact is configured.
+        value: ${{ jobs.build.outputs.artifact-id }}
+permissions: {}
+jobs:
+  configuration:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions: {}
+    outputs:
+      versions: ${{ steps.config.outputs.versions }}
+      primary-version: ${{ steps.config.outputs.primary-version }}
+      lint: ${{ steps.config.outputs.lint }}
+      test: ${{ steps.config.outputs.test }}
+      build: ${{ steps.config.outputs.build }}
+    steps:
+      - id: config
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          VERSIONS: ${{ inputs.go-versions }}
+          LINT: ${{ inputs.lint }}
+          TEST: ${{ inputs.test }}
+          BUILD: ${{ inputs.build }}
+        with:
+          script: |
+            const versions = process.env.VERSIONS.trim() ? JSON.parse(process.env.VERSIONS) : [''];
+            if (!Array.isArray(versions) || !versions.length || versions.length > 20 ||
+                versions.some(version => typeof version !== 'string' || (version && !/^\d+\.\d+(?:\.\d+)?$/.test(version))) ||
+                new Set(versions).size !== versions.length) {
+              throw new Error('versions must be a nonempty JSON array of unique numeric version strings.');
+            }
+            function options(name, input, defaults) {
+              const value = input.trim();
+              if (['', 'false', 'null'].includes(value)) return null;
+              let config;
+              if (value === 'true') config = {};
+              else if (value.startsWith('{') || value.startsWith('[')) config = JSON.parse(value);
+              else config = {command: value};
+              if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error(name + ' must be a command or JSON object.');
+              const unknown = Object.keys(config).filter(key => !Object.hasOwn(defaults, key));
+              if (unknown.length) throw new Error('Unknown ' + name + ' options: ' + unknown.join(', '));
+              config = {...defaults, ...config};
+              for (const [key, value] of Object.entries(config)) {
+                if (typeof value !== typeof defaults[key]) throw new Error(name + '.' + key + ' has the wrong type.');
+              }
+              return config;
+            }
+            const lint = options('lint', process.env.LINT, {command: ''});
+            const test = options('test', process.env.TEST, {"command": "", "coverage": "github", "race": true});
+            if (test && !['', 'github', 'codecov'].includes(test.coverage)) throw new Error('test.coverage must be github, codecov or empty.');
+            const build = options('build', process.env.BUILD, {command: 'go build -mod=readonly -trimpath ./...', artifact: ''});
+            const artifact = build?.artifact;
+            if (artifact && (artifact === '.' || artifact.startsWith('/') || artifact.includes('\\') || artifact.split('/').includes('..') || /[\r\n*?]/.test(artifact))) {
+              throw new Error('build.artifact must be one directory inside working-directory.');
+            }
+            if (build && !build.command.trim()) throw new Error('build.command must not be empty.');
+            core.setOutput('build', JSON.stringify(build));
+            core.setOutput('versions', versions);
+            core.setOutput('primary-version', versions.at(-1));
+            core.setOutput('lint', JSON.stringify(lint));
+            core.setOutput('test', JSON.stringify(test));
+  dependency-review:
+    if: inputs.checks && inputs.dependency-review && github.event_name == 'pull_request'
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec
+  lint:
+    if: inputs.checks && needs.configuration.outputs.lint != 'null'
+    needs: configuration
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: $/actions/setup-go
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          go-version: ${{ needs.configuration.outputs.primary-version }}
+      - uses: $/actions/lint
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          command: ${{ fromJSON(needs.configuration.outputs.lint).command }}
+          golangci-lint-version: ${{ inputs.golangci-lint-version }}
+  test:
+    if: inputs.checks && needs.configuration.outputs.test != 'null'
+    needs: configuration
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: $/actions/setup-go
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          go-version: ${{ matrix.version }}
+      - uses: $/actions/test
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          command: ${{ fromJSON(needs.configuration.outputs.test).command }}
+          coverage: ${{ matrix.version == needs.configuration.outputs.primary-version && fromJSON(needs.configuration.outputs.test).coverage || '' }}
+          race: ${{ fromJSON(needs.configuration.outputs.test).race }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.configuration.outputs.versions) }}
+  audit:
+    if: inputs.checks && inputs.audit
+    needs: configuration
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: $/actions/setup-go
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          go-version: ${{ needs.configuration.outputs.primary-version }}
+      - uses: $/actions/audit
+        with:
+          working-directory: ${{ inputs.working-directory }}
+  build:
+    if: inputs.checks && needs.configuration.outputs.build != 'null'
+    needs: configuration
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: $/actions/setup-go
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          go-version: ${{ needs.configuration.outputs.primary-version }}
+      - uses: $/actions/build
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          command: ${{ fromJSON(needs.configuration.outputs.build).command }}
+      - id: artifact
+        if: fromJSON(needs.configuration.outputs.build).artifact != ''
+        uses: hoverkraft-tech/ci-github-common/actions/working-directory@66882b24f9f13e45a6541896a5a7c638cb91c94c
+        with:
+          working-directory: ${{ inputs.working-directory }}/${{ fromJSON(needs.configuration.outputs.build).artifact }}
+      - id: artifact-name
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        if: fromJSON(needs.configuration.outputs.build).artifact != ''
+        with:
+          script: |
+            core.setOutput('name', 'go-build-' + require('node:crypto').randomUUID());
+      - id: upload-build
+        if: fromJSON(needs.configuration.outputs.build).artifact != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ${{ steps.artifact-name.outputs.name }}
+          path: ${{ steps.artifact.outputs.absolute-path }}
+          if-no-files-found: error
+          retention-days: 7
+    outputs:
+      artifact-id: ${{ steps.upload-build.outputs.artifact-id }}

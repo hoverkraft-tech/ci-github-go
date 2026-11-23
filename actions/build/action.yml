@@ -1,0 +1,39 @@
+name: Build Go
+description: |
+  Compile all packages with read-only module metadata and trimmed paths. Run setup-go first. Override command to produce application-specific binaries.
+
+  See the [usage guide](../../docs/usage/README.md).
+author: hoverkraft
+branding:
+  icon: package
+  color: blue
+inputs:
+  working-directory:
+    description: Go module directory.
+    default: .
+  command:
+    description: Trusted Bash build command. Artifact upload belongs to the caller or continuous-integration workflow.
+    default: go build -mod=readonly -trimpath ./...
+runs:
+  using: composite
+  steps:
+    # Shared working-directory validation, kept at each standalone entry point.
+    # jscpd:ignore-start
+    - id: directory
+      uses: hoverkraft-tech/ci-github-common/actions/working-directory@66882b24f9f13e45a6541896a5a7c638cb91c94c
+      with:
+        working-directory: ${{ inputs.working-directory }}
+    # jscpd:ignore-end
+    - id: run
+      shell: bash
+      working-directory: ${{ steps.directory.outputs.absolute-path }}
+      env:
+        COMMAND: ${{ inputs.command }}
+        CI: "true"
+      run: |
+        test -n "$COMMAND" || { echo "command must not be empty." >&2; exit 1; }
+        if [ -n "$COMMAND" ] && ! [[ "$COMMAND" =~ [^[:space:]] ]]; then
+          echo "command must not contain only whitespace." >&2
+          exit 1
+        fi
+        bash --noprofile --norc -e -u -o pipefail -c "$COMMAND"
