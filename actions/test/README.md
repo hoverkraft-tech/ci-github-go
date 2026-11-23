@@ -32,30 +32,14 @@ GitHub coverage uses native `go tool cover` summaries and retains `coverage.out`
 the common report parser handles JUnit, not the native Go coverage format.
 
 Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
-This action reuses the installed environment. Use the same reviewed commit SHA
-for both actions. Do not populate command inputs from untrusted pull request text.
-
-```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@main
-  with:
-    working-directory: .
-```
-
-### Reports
-
-Native reports are retained for seven days, including after command failures.
-Only report files are uploaded, with unique names for parallel calls. When no
-reports are produced, `report-artifact-id` is empty. GitHub summaries and
-annotations need only `contents: read`; individual PR comments are not created.
-Use the common [ci-reports workflow](https://github.com/hoverkraft-tech/ci-github-common/blob/main/.github/workflows/ci-reports.yml)
-for consolidated comments and set `report-group` to the outer calling job ID.
 
 `coverage: "github"` is the default. Set `coverage: "codecov"` and grant the
 job `id-token: write` for OIDC upload of `coverage.out`. An empty coverage
 value disables publication while retaining JUnit; collection is controlled by
 the command. Custom commands must produce the applicable report files.
 
-See the [continuous integration workflow](../../.github/workflows/continuous-integration.md) for orchestration and version matrices.
+Native reports survive command failures and are retained for seven days.
+See the [continuous integration workflow](../../.github/workflows/continuous-integration.md#reports-and-permissions) for consolidated reporting and permissions.
 
 <!-- overview:end -->
 <!-- usage:start -->
@@ -63,7 +47,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@de6908ea83390fa937fd58ae67ce021839cf7638 # main
+- uses: hoverkraft-tech/ci-github-go/actions/test@c78fc5df69258300e08b5017e1a7768cab4f2a03 # fix/enforce-lint-checks
   with:
     # Go module directory.
     # Default: `.`

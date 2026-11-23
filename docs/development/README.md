@@ -2,7 +2,9 @@
 
 Install Node.js from `.node-version`, npm, Go, a C compiler and golangci-lint v2, and Docker.
 Node.js and the development-only `yaml` dependency exercise the actual inline
-Actions configuration scripts. No JavaScript build or runtime bundle is shipped.
+Actions configuration scripts. Lint and test actions share the internal
+[retain-reports action](../../.github/actions/retain-reports/README.md), which owns
+file selection, unique artifact naming and uploads.
 
 ```sh
 make setup
@@ -40,6 +42,9 @@ Usage belongs directly in generated action and workflow readmes. Put source
 guidance in action descriptions and workflow header comments so `make docs`
 preserves it. Contributor procedures belong here.
 
+Documentation generation reads GitHub metadata for repository logos and licensing.
+Set `GITHUB_TOKEN` when authentication is required or anonymous API limits are reached.
+
 ## Maintenance and releases
 
 External actions are pinned to immutable commits. Dependabot updates actions,
@@ -65,5 +70,11 @@ not depend on installed fonts. `.github/logo.svg` is the compact badge;
 `.github/social-preview.svg` is the source for the 1280 x 640 PNG preview.
 After changing the SVG, export the PNG at those dimensions and inspect both.
 
-Duplication checks exclude generated references, self-contained usage descriptions
-and the shared SVG artwork. Executable workflow steps remain checked.
+Duplication checks cover action metadata, runtime helpers, workflows and SVG assets.
+Only generated reference readmes and third-party vendor files are excluded from
+copy detection; generated readmes still pass Markdown validation.
+
+The shared linter uses its bundled Go compiler (`GOTOOLCHAIN=local`) with the
+fixture configuration. This keeps its precompiled golangci-lint compatible with
+the compiler export format. Dedicated action tests also lint with the project
+toolchain and the action's pinned golangci-lint release.

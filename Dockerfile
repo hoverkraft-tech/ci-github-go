@@ -5,11 +5,6 @@ ARG UID=1000
 ARG GID=1000
 USER ${UID}:${GID}
 
-# Language fixtures are checked with their declared runtimes and tools.
-ENV VALIDATE_GO=false \
-    VALIDATE_GO_MODULES=false \
-    VALIDATE_PYTHON_BLACK=false \
-    VALIDATE_PYTHON_RUFF=false \
-    VALIDATE_PYTHON_MYPY=false \
-    VALIDATE_PYTHON_PYLINT=false \
-    VALIDATE_PYTHON_ISORT=false
+ENV LOG_LEVEL=INFO \
+    GOTOOLCHAIN=local \
+    GO_CONFIG_FILE=../../tests/go-project/.golangci.yml

@@ -106,9 +106,11 @@ test("report artifacts contain only parsed reports and use unique names", async 
     "core",
     "process",
     "require",
-    step("test", "report-artifact").with.script,
+    YAML.parse(
+      fs.readFileSync(".github/actions/retain-reports/action.yml", "utf8"),
+    ).runs.steps.find((item) => item.id === "prepare").with.script,
   );
-  async function outputs(files, group = "outer-job") {
+  async function outputs(files, group = "outer-job", nativeCoverage = false) {
     const result = {};
     await prepare(
       {
@@ -121,7 +123,7 @@ test("report artifacts contain only parsed reports and use unique names", async 
           DIRECTORY: directory,
           REPORT_FILES: JSON.stringify(files),
           REPORT_GROUP: group,
-          NATIVE_COVERAGE: "false",
+          NATIVE_COVERAGE: String(nativeCoverage),
           GITHUB_RUN_ATTEMPT: "2",
         },
       },
@@ -135,4 +137,11 @@ test("report artifacts contain only parsed reports and use unique names", async 
   assert.match(first.name, /^ci-reports-2-outer-job-/);
   assert.notEqual(first.name, (await outputs([report])).name);
   await assert.rejects(() => outputs([report], "../bad-group"), /report-group/);
+  const coverage = path.join(directory, "coverage.out");
+  fs.writeFileSync(coverage, "mode: atomic\n");
+  assert.equal(
+    (await outputs([report], "outer-job", true)).files,
+    `${report}\n${coverage}`,
+  );
+  assert.equal((await outputs([report])).files, report);
 });

@@ -31,14 +31,6 @@ outputs in the project directory. Use the reusable workflow's `build.artifact`
 option or an upload step to retain them. It does not publish releases.
 
 Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
-This action reuses the installed environment. Use the same reviewed commit SHA
-for both actions. Do not populate command inputs from untrusted pull request text.
-
-```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/build@main
-  with:
-    working-directory: .
-```
 
 See the [continuous integration workflow](../../.github/workflows/continuous-integration.md) for orchestration and version matrices.
 
@@ -48,7 +40,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/build@de6908ea83390fa937fd58ae67ce021839cf7638 # main
+- uses: hoverkraft-tech/ci-github-go/actions/build@c78fc5df69258300e08b5017e1a7768cab4f2a03 # fix/enforce-lint-checks
   with:
     # Go module directory.
     # Default: `.`
