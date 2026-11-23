@@ -8,10 +8,15 @@ description: |
   Use `command` to replace defaults with a trusted Bash program.
   Custom commands should emit SARIF or Checkstyle for annotations.
 
+  <!-- jscpd:ignore-start -->
+  <!-- Shared setup and reporting guidance for standalone actions. -->
+
   Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
 
   Native reports survive command failures and are retained for seven days.
   See the [continuous integration workflow](../../.github/workflows/continuous-integration.md#reports-and-permissions) for consolidated reporting and permissions.
+
+  <!-- jscpd:ignore-end -->
 author: hoverkraft
 branding:
   icon: package
@@ -77,7 +82,7 @@ runs:
     - name: Report lint results
       id: report-artifact
       if: ${{ !cancelled() && steps.run.outcome != 'skipped' }}
-      uses: $/.github/actions/retain-reports
+      uses: $/.github/actions/parse-ci-reports
       with:
         directory: ${{ steps.directory.outputs.absolute-path }}
         report-paths: auto:lint

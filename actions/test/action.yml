@@ -10,15 +10,25 @@ description: |
   GitHub coverage uses native `go tool cover` summaries and retains `coverage.out`;
   the common report parser handles JUnit, not the native Go coverage format.
 
+  <!-- jscpd:ignore-start -->
+  <!-- Shared setup and reporting guidance for standalone actions. -->
+
   Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
+
+  <!-- jscpd:ignore-end -->
 
   `coverage: "github"` is the default. Set `coverage: "codecov"` and grant the
   job `id-token: write` for OIDC upload of `coverage.out`. An empty coverage
   value disables publication while retaining JUnit; collection is controlled by
   the command. Custom commands must produce the applicable report files.
 
+  <!-- jscpd:ignore-start -->
+  <!-- Shared setup and reporting guidance for standalone actions. -->
+
   Native reports survive command failures and are retained for seven days.
   See the [continuous integration workflow](../../.github/workflows/continuous-integration.md#reports-and-permissions) for consolidated reporting and permissions.
+
+  <!-- jscpd:ignore-end -->
 author: hoverkraft
 branding:
   icon: package
@@ -83,7 +93,7 @@ runs:
     - name: Report test results
       id: report-artifact
       if: ${{ !cancelled() && steps.run.outcome != 'skipped' }}
-      uses: $/.github/actions/retain-reports
+      uses: $/.github/actions/parse-ci-reports
       with:
         directory: ${{ steps.directory.outputs.absolute-path }}
         report-paths: auto:test

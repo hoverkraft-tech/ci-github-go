@@ -7,9 +7,14 @@ description: |
   Go toolchain. It requires network access to the current vulnerability database
   and propagates scanner failures. Dependency metadata is not rewritten.
 
+  <!-- jscpd:ignore-start -->
+  <!-- Shared setup and reporting guidance for standalone actions. -->
+
   Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
 
   See the [continuous integration workflow](../../.github/workflows/continuous-integration.md) for orchestration and version matrices.
+
+  <!-- jscpd:ignore-end -->
 author: hoverkraft
 branding:
   icon: package

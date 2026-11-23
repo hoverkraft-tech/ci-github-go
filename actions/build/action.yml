@@ -9,9 +9,14 @@ description: |
   outputs in the project directory. Use the reusable workflow's `build.artifact`
   option or an upload step to retain them. It does not publish releases.
 
+  <!-- jscpd:ignore-start -->
+  <!-- Shared setup and reporting guidance for standalone actions. -->
+
   Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
 
   See the [continuous integration workflow](../../.github/workflows/continuous-integration.md) for orchestration and version matrices.
+
+  <!-- jscpd:ignore-end -->
 author: hoverkraft
 branding:
   icon: package
