@@ -24,7 +24,7 @@ See the [usage guide](../../docs/usage/README.md).
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/audit@c1b86fe6ecd03a1f106b6ecdae7a1f2857572c7b # main
+- uses: hoverkraft-tech/ci-github-go/actions/audit@ff229dbaa59bd8c6272fdbbd0fae8285a4d6c960 # main
   with:
     # Go module directory.
     # Default: `.`
