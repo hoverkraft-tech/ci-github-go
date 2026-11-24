@@ -77,7 +77,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/setup-go@6c27a4d0727d6e7eb9be4dd0bfa3a8891b0df732 # fix/consolidated-go-coverage
+- uses: hoverkraft-tech/ci-github-go/actions/setup-go@eac34b0e29b78265265a2021a9099f73ab699e0c # fix/consolidated-go-coverage
   with:
     # Go module directory inside the checkout.
     # Default: `.`

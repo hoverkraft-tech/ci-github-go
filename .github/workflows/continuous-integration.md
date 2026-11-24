@@ -144,7 +144,7 @@ on:
 permissions: {}
 jobs:
   continuous-integration:
-    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@6c27a4d0727d6e7eb9be4dd0bfa3a8891b0df732 # fix/consolidated-go-coverage
+    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@eac34b0e29b78265265a2021a9099f73ab699e0c # fix/consolidated-go-coverage
     permissions:
       contents: read
       id-token: write
