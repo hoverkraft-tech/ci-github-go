@@ -31,10 +31,12 @@ jobs:
   test-action-lint:
     uses: $/.github/workflows/__test-action-lint.yml
     permissions:
+      actions: read
       contents: read
   test-action-test:
     uses: $/.github/workflows/__test-action-test.yml
     permissions:
+      actions: read
       contents: read
   test-action-audit:
     uses: $/.github/workflows/__test-action-audit.yml
