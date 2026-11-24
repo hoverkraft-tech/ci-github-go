@@ -24,7 +24,7 @@ description: |
 
   ```yaml
   steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - uses: hoverkraft-tech/ci-github-go/actions/setup-go@main
@@ -60,7 +60,7 @@ runs:
   using: composite
   steps:
     - id: directory
-      uses: hoverkraft-tech/ci-github-common/actions/working-directory@d606f77fad305ef07dfde3db5270f5e324019c97
+      uses: hoverkraft-tech/ci-github-common/actions/working-directory@d606f77fad305ef07dfde3db5270f5e324019c97 # 4.2.4
       with:
         working-directory: ${{ inputs.working-directory }}
     - id: validate
@@ -75,7 +75,7 @@ runs:
         esac
         test -f go.mod || { echo 'Missing go.mod in working-directory.' >&2; exit 1; }
     - id: go
-      uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+      uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
       with:
         go-version: ${{ inputs.go-version }}
         go-version-file: ${{ steps.directory.outputs.workspace-relative-path }}/go.mod

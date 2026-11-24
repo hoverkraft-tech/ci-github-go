@@ -68,7 +68,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@30402692aa9361de7532ff2b27279bce388f7edf # main
+- uses: hoverkraft-tech/ci-github-go/actions/test@fad246d709b737d8277bd10e01a474d6e6651ab8 # dependabot/github_actions/github-actions-dependencies-970c98ee9d
   with:
     # Go module directory.
     # Default: `.`

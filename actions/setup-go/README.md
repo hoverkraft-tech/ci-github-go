@@ -52,7 +52,7 @@ Later lint, test and audit actions reuse this environment.
 
 ```yaml
 steps:
-  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     with:
       persist-credentials: false
   - uses: hoverkraft-tech/ci-github-go/actions/setup-go@main
@@ -77,7 +77,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/setup-go@30402692aa9361de7532ff2b27279bce388f7edf # main
+- uses: hoverkraft-tech/ci-github-go/actions/setup-go@fad246d709b737d8277bd10e01a474d6e6651ab8 # dependabot/github_actions/github-actions-dependencies-970c98ee9d
   with:
     # Go module directory inside the checkout.
     # Default: `.`
