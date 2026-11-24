@@ -143,7 +143,7 @@ on:
 permissions: {}
 jobs:
   continuous-integration:
-    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@ad40427cd4fbdbae9eb32e3153b58cd18239164d # fix/enforce-lint-checks
+    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@30402692aa9361de7532ff2b27279bce388f7edf # main
     permissions:
       contents: read
       id-token: write
