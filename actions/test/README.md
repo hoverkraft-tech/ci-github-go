@@ -37,6 +37,8 @@ set `race: "false"` when unavailable. A trusted Bash `command` replaces defaults
 and must produce JUnit for test reporting and `coverage.out` for coverage.
 GitHub coverage uses native `go tool cover` summaries and retains `coverage.out`;
 the common report parser handles JUnit, not the native Go coverage format.
+Native coverage is retained in a separate `go-coverage-*` artifact, so consolidated
+CI reports receive only supported files. Coverage details remain in the test job summary.
 
 <!-- jscpd:ignore-start -->
 <!-- Shared setup and reporting guidance for standalone actions. -->
@@ -68,7 +70,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@1170dea4804c7e6ce61d6900e57b42a20b2e6689 # main
+- uses: hoverkraft-tech/ci-github-go/actions/test@6c27a4d0727d6e7eb9be4dd0bfa3a8891b0df732 # fix/consolidated-go-coverage
   with:
     # Go module directory.
     # Default: `.`
@@ -112,9 +114,10 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Outputs
 
-| **Output**               | **Description**                                                 |
-| ------------------------ | --------------------------------------------------------------- |
-| **`report-artifact-id`** | Native report artifact ID. Empty when no reports were produced. |
+| **Output**                 | **Description**                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| **`report-artifact-id`**   | Native report artifact ID. Empty when no reports were produced.                 |
+| **`coverage-artifact-id`** | Native coverage.out artifact ID for GitHub coverage, or empty when unavailable. |
 
 <!-- outputs:end -->
 

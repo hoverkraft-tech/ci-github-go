@@ -106,7 +106,8 @@ Use the common
 [ci-reports workflow](https://github.com/hoverkraft-tech/ci-github-common/blob/main/.github/workflows/ci-reports.yml)
 for consolidated comments after standalone producer jobs; set `report-group` to
 the outer calling job ID when required. Go coverage uses native `go tool cover` summaries and retains
-`coverage.out`; the common parser handles JUnit, not native Go coverage.
+`coverage.out` in separate `go-coverage-*` artifacts; the common parser handles
+JUnit, not native Go coverage. Coverage details remain in each test job summary.
 
 `test: '{"coverage":"codecov"}'` enables OIDC upload. The expected coverage file is
 `coverage.out`. A custom command must produce
@@ -143,7 +144,7 @@ on:
 permissions: {}
 jobs:
   continuous-integration:
-    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@1170dea4804c7e6ce61d6900e57b42a20b2e6689 # main
+    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@6c27a4d0727d6e7eb9be4dd0bfa3a8891b0df732 # fix/consolidated-go-coverage
     permissions:
       contents: read
       id-token: write

@@ -1,8 +1,9 @@
 ---
 name: Parse CI reports
 description:
-  Parse native reports, publish summaries and retain selected files in one artifact. Internal helper for lint and
-  test.
+  Parse native reports and retain parsed files for consolidated reporting.
+  Keep native Go coverage in a separate artifact because the common parser does not support its format.
+  Internal helper for lint and test.
 inputs:
   directory:
     description: Validated absolute project directory.
@@ -14,7 +15,7 @@ inputs:
     description: Calling job ID used to group reports.
     required: true
   native-coverage:
-    description: Include the project's coverage.out when present.
+    description: Retain the project's coverage.out in a separate artifact when present.
     default: "false"
   report-name:
     description: Title of the GitHub report summary.
@@ -23,6 +24,9 @@ outputs:
   artifact-id:
     description: Uploaded artifact ID, or empty when no report files exist.
     value: ${{ steps.upload.outputs.artifact-id }}
+  coverage-artifact-id:
+    description: Native Go coverage artifact ID, or empty when no coverage was retained.
+    value: ${{ steps.upload-coverage.outputs.artifact-id }}
 runs:
   using: composite
   steps:
@@ -51,15 +55,20 @@ runs:
           const fs = require('node:fs');
           const path = require('node:path');
           const files = JSON.parse(process.env.REPORT_FILES || '[]');
-          if (process.env.NATIVE_COVERAGE === 'true') {
-            const coverage = path.join(process.env.DIRECTORY, 'coverage.out');
-            if (fs.existsSync(coverage)) files.push(coverage);
-          }
-          if (!files.length) return;
+          const coverage = path.join(process.env.DIRECTORY, 'coverage.out');
+          const retainCoverage = process.env.NATIVE_COVERAGE === 'true' && fs.existsSync(coverage);
+          if (!files.length && !retainCoverage) return;
           const group = process.env.REPORT_GROUP;
           if (!/^[\w-]+$/.test(group)) throw new Error('report-group must be a job ID.');
-          core.setOutput('files', files.join('\n'));
-          core.setOutput('name', `ci-reports-${process.env.GITHUB_RUN_ATTEMPT}-${group}-${require('node:crypto').randomUUID()}`);
+          const suffix = `${process.env.GITHUB_RUN_ATTEMPT}-${group}-${require('node:crypto').randomUUID()}`;
+          if (files.length) {
+            core.setOutput('files', files.join('\n'));
+            core.setOutput('name', `ci-reports-${suffix}`);
+          }
+          if (retainCoverage) {
+            core.setOutput('coverage-file', coverage);
+            core.setOutput('coverage-name', `go-coverage-${suffix}`);
+          }
       if: ${{ !cancelled() }}
     - id: upload
       if: ${{ !cancelled() && steps.prepare.outputs.files != '' }}
@@ -68,5 +77,13 @@ runs:
         name: ${{ steps.prepare.outputs.name }}
         path: ${{ steps.prepare.outputs.files }}
         include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 7
+    - id: upload-coverage
+      if: ${{ !cancelled() && steps.prepare.outputs.coverage-file != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ steps.prepare.outputs.coverage-name }}
+        path: ${{ steps.prepare.outputs.coverage-file }}
         if-no-files-found: error
         retention-days: 7

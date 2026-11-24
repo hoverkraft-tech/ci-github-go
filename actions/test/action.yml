@@ -9,6 +9,8 @@ description: |
   and must produce JUnit for test reporting and `coverage.out` for coverage.
   GitHub coverage uses native `go tool cover` summaries and retains `coverage.out`;
   the common report parser handles JUnit, not the native Go coverage format.
+  Native coverage is retained in a separate `go-coverage-*` artifact, so consolidated
+  CI reports receive only supported files. Coverage details remain in the test job summary.
 
   <!-- jscpd:ignore-start -->
   <!-- Shared setup and reporting guidance for standalone actions. -->
@@ -53,6 +55,9 @@ outputs:
   report-artifact-id:
     description: Native report artifact ID. Empty when no reports were produced.
     value: ${{ steps.report-artifact.outputs.artifact-id }}
+  coverage-artifact-id:
+    description: Native coverage.out artifact ID for GitHub coverage, or empty when unavailable.
+    value: ${{ steps.report-artifact.outputs.coverage-artifact-id }}
 runs:
   using: composite
   steps:

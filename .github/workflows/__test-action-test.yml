@@ -11,6 +11,8 @@ jobs:
       contents: read
     outputs:
       artifact-id: ${{ steps.failed-test.outputs.report-artifact-id }}
+      success-artifact-id: ${{ steps.test.outputs.report-artifact-id }}
+      coverage-artifact-id: ${{ steps.test.outputs.coverage-artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -47,6 +49,7 @@ jobs:
         env:
           SUCCESS_ARTIFACT: ${{ steps.test.outputs.report-artifact-id }}
           FAILURE_ARTIFACT: ${{ steps.failed-test.outputs.report-artifact-id }}
+          COVERAGE_ARTIFACT: ${{ steps.test.outputs.coverage-artifact-id }}
           TEST_OUTCOME: ${{ steps.failed-test.outcome }}
         with:
           script: |
@@ -55,6 +58,8 @@ jobs:
             assert.ok(process.env.SUCCESS_ARTIFACT, 'Successful tests retain reports');
             assert.ok(process.env.FAILURE_ARTIFACT, 'Failed tests retain reports');
             assert.notEqual(process.env.SUCCESS_ARTIFACT, process.env.FAILURE_ARTIFACT);
+            assert.ok(process.env.COVERAGE_ARTIFACT, 'Native coverage is retained separately');
+            assert.notEqual(process.env.SUCCESS_ARTIFACT, process.env.COVERAGE_ARTIFACT);
   verify:
     needs: test
     runs-on: ubuntu-latest
@@ -75,3 +80,27 @@ jobs:
         run: |
           test -f "$REPORT_DIRECTORY/junit.xml"
           grep -q 'message="expected"' "$REPORT_DIRECTORY/junit.xml"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          artifact-ids: ${{ needs.test.outputs.success-artifact-id }}
+          path: ${{ runner.temp }}/successful-reports
+      - name: Verify consolidated reports parse every retained file
+        uses: hoverkraft-tech/ci-github-common/actions/quality/parse-ci-reports@33462c06bcbbd9144d7f661929e61953604b444d # 4.3.2
+        with:
+          working-directory: ${{ runner.temp }}/successful-reports
+          report-paths: "**/*"
+          output-format: summary
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          artifact-ids: ${{ needs.test.outputs.coverage-artifact-id }}
+          path: ${{ runner.temp }}/native-coverage
+      - name: Verify native coverage stays available outside consolidated artifacts
+        shell: bash
+        env:
+          REPORT_DIRECTORY: ${{ runner.temp }}/successful-reports
+          COVERAGE_DIRECTORY: ${{ runner.temp }}/native-coverage
+        run: |
+          test ! -e "$REPORT_DIRECTORY/coverage.out"
+          grep -q '^mode: atomic$' "$COVERAGE_DIRECTORY/coverage.out"

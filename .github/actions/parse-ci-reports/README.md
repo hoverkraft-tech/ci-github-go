@@ -29,7 +29,7 @@
 
 ## Overview
 
-Parse native reports, publish summaries and retain selected files in one artifact. Internal helper for lint and test.
+Parse native reports and retain parsed files for consolidated reporting. Keep native Go coverage in a separate artifact because the common parser does not support its format. Internal helper for lint and test.
 
 <!-- overview:end -->
 
@@ -41,7 +41,7 @@ Parse native reports, publish summaries and retain selected files in one artifac
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/.github/actions/parse-ci-reports@fad246d709b737d8277bd10e01a474d6e6651ab8 # dependabot/github_actions/github-actions-dependencies-970c98ee9d
+- uses: hoverkraft-tech/ci-github-go/.github/actions/parse-ci-reports@6c27a4d0727d6e7eb9be4dd0bfa3a8891b0df732 # fix/consolidated-go-coverage
   with:
     # Validated absolute project directory.
     # This input is required.
@@ -55,7 +55,7 @@ Parse native reports, publish summaries and retain selected files in one artifac
     # This input is required.
     group: ""
 
-    # Include the project's coverage.out when present.
+    # Retain the project's coverage.out in a separate artifact when present.
     # Default: `false`
     native-coverage: "false"
 
@@ -70,13 +70,13 @@ Parse native reports, publish summaries and retain selected files in one artifac
 
 ## Inputs
 
-| **Input**             | **Description**                                             | **Required** | **Default**  |
-| --------------------- | ----------------------------------------------------------- | ------------ | ------------ |
-| **`directory`**       | Validated absolute project directory.                       | **true**     | -            |
-| **`report-paths`**    | Report paths or auto selectors passed to the common parser. | **false**    | `auto:test`  |
-| **`group`**           | Calling job ID used to group reports.                       | **true**     | -            |
-| **`native-coverage`** | Include the project's coverage.out when present.            | **false**    | `false`      |
-| **`report-name`**     | Title of the GitHub report summary.                         | **false**    | `CI reports` |
+| **Input**             | **Description**                                                        | **Required** | **Default**  |
+| --------------------- | ---------------------------------------------------------------------- | ------------ | ------------ |
+| **`directory`**       | Validated absolute project directory.                                  | **true**     | -            |
+| **`report-paths`**    | Report paths or auto selectors passed to the common parser.            | **false**    | `auto:test`  |
+| **`group`**           | Calling job ID used to group reports.                                  | **true**     | -            |
+| **`native-coverage`** | Retain the project's coverage.out in a separate artifact when present. | **false**    | `false`      |
+| **`report-name`**     | Title of the GitHub report summary.                                    | **false**    | `CI reports` |
 
 <!-- inputs:end -->
 
@@ -87,9 +87,10 @@ Parse native reports, publish summaries and retain selected files in one artifac
 
 ## Outputs
 
-| **Output**        | **Description**                                            |
-| ----------------- | ---------------------------------------------------------- |
-| **`artifact-id`** | Uploaded artifact ID, or empty when no report files exist. |
+| **Output**                 | **Description**                                                         |
+| -------------------------- | ----------------------------------------------------------------------- |
+| **`artifact-id`**          | Uploaded artifact ID, or empty when no report files exist.              |
+| **`coverage-artifact-id`** | Native Go coverage artifact ID, or empty when no coverage was retained. |
 
 <!-- outputs:end -->
 
