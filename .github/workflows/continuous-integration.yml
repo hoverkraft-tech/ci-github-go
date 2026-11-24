@@ -76,7 +76,8 @@
 # [ci-reports workflow](https://github.com/hoverkraft-tech/ci-github-common/blob/main/.github/workflows/ci-reports.yml)
 # for consolidated comments after standalone producer jobs; set `report-group` to
 # the outer calling job ID when required. Go coverage uses native `go tool cover` summaries and retains
-# `coverage.out`; the common parser handles JUnit, not native Go coverage.
+# `coverage.out` in separate `go-coverage-*` artifacts; the common parser handles
+# JUnit, not native Go coverage. Coverage details remain in each test job summary.
 #
 # `test: '{"coverage":"codecov"}'` enables OIDC upload. The expected coverage file is
 # `coverage.out`. A custom command must produce

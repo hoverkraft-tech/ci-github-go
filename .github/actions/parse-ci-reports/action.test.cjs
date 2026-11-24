@@ -52,9 +52,17 @@ test("report artifacts contain only parsed reports and use unique names", async 
   await assert.rejects(() => outputs([report], "../bad-group"), /report-group/);
   const coverage = path.join(directory, "coverage.out");
   fs.writeFileSync(coverage, "mode: atomic\n");
+  const retained = await outputs([report], "outer-job", true);
+  assert.equal(retained.files, report);
+  assert.equal(retained["coverage-file"], coverage);
+  assert.match(retained["coverage-name"], /^go-coverage-2-outer-job-/);
   assert.equal(
-    (await outputs([report], "outer-job", true)).files,
-    `${report}\n${coverage}`,
+    retained.name.replace("ci-reports-", "go-coverage-"),
+    retained["coverage-name"],
   );
+  const coverageOnly = await outputs([], "outer-job", true);
+  assert.equal(coverageOnly.files, undefined);
+  assert.equal(coverageOnly["coverage-file"], coverage);
+  await assert.rejects(() => outputs([], "../bad-group", true), /report-group/);
   assert.equal((await outputs([report])).files, report);
 });
