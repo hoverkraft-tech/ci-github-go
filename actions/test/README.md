@@ -70,7 +70,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@eac34b0e29b78265265a2021a9099f73ab699e0c # fix/consolidated-go-coverage
+- uses: hoverkraft-tech/ci-github-go/actions/test@3a72b809f7253a916ee2f4bcee59a66bbba131d3 # main
   with:
     # Go module directory.
     # Default: `.`
