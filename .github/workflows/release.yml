@@ -1,0 +1,106 @@
+# Publish the exact Go archives retained by build-release.yml after successful validation.
+#
+# Plan the tag with ci-github-publish/actions/release/plan, skip unchanged releases,
+# and pass that tag to build-release.yml after all required CI checks. Then call this
+# workflow with its artifact-id and the same tag and release-config. Publication
+# verifies the artifact's run, commit, tag and availability before creating a release.
+# No checkout, compilation or GoReleaser execution happens during publication.
+#
+# Grant actions read, contents write and pull-requests read to the calling job.
+# Use only trusted release triggers and require successful validation through needs.
+# Pull request events are rejected. Optional environment protection applies only
+# to the publication job. No repository bot credentials are needed.
+#
+# changelog-summary accepts the complete ci-github-publish JSON configuration;
+# use the secret for credentials. An empty value disables summarization.
+# Publication-only reruns reuse the same artifact ID; expired/deleted artifacts fail.
+# Full reruns produce a new ID. The shared release action owns release creation,
+# summary failures and asset recovery. Pin callers to a reviewed commit SHA.
+---
+name: Publish Go release
+"on":
+  workflow_call:
+    inputs:
+      tag:
+        description: Planned semantic-version tag used by build-release.yml.
+        type: string
+        required: true
+      artifact-id:
+        description: Immutable build-release.yml artifact ID from this run and commit. The caller must require successful validation.
+        type: string
+        required: true
+      working-directory:
+        description: Project directory matching preparation and packaging.
+        type: string
+        default: .
+      release-config:
+        description: Partial YAML or JSON release configuration forwarded unchanged to ci-github-publish/actions/release/create. Use the same configuration when planning.
+        type: string
+        default: ""
+      changelog-summary:
+        description: Optional complete JSON summary configuration. Use the secret when it contains credentials; a nonempty secret overrides this input.
+        type: string
+        default: ""
+      environment:
+        description: Optional GitHub environment protecting publication.
+        type: string
+        default: ""
+    secrets:
+      changelog-summary:
+        description: Optional complete JSON summary configuration including credentials. Overrides the input.
+        required: false
+permissions: {}
+concurrency:
+  group: go-release-${{ github.repository }}-${{ inputs.working-directory }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    steps:
+      - name: Verify release artifact provenance
+        id: verify
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TAG: ${{ inputs.tag }}
+          ARTIFACT_ID: ${{ inputs.artifact-id }}
+        with:
+          # Retry delayed artifact metadata visibility; authentication failures stay fatal.
+          retries: 4
+          retry-exempt-status-codes: 400,401,403,422
+          script: |
+            const tag = process.env.TAG;
+            const id = Number(process.env.ARTIFACT_ID);
+            if (!/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(tag)) {
+              throw new Error('tag must be a semantic version, optionally prefixed with v.');
+            }
+            if (!/^[1-9]\d*$/.test(process.env.ARTIFACT_ID) || !Number.isSafeInteger(id)) {
+              throw new Error('artifact-id must be one positive integer.');
+            }
+            if (context.eventName.startsWith('pull_request')) throw new Error('Pull request events cannot publish releases.');
+            const { data: artifact } = await github.rest.actions.getArtifact({...context.repo, artifact_id: id});
+            if (artifact.expired || artifact.workflow_run?.id !== context.runId || artifact.workflow_run?.head_sha !== context.sha ||
+                !artifact.name.startsWith(`go-release-${tag}-${context.runId}-`)) {
+              throw new Error('Expected an available release artifact for this run, commit and tag.');
+            }
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Publish retained archives and release notes
+        uses: hoverkraft-tech/ci-github-publish/actions/release/create@bf24f894f60a3def62a8750f3964d05acb052c11 # 3.1.2
+        with:
+          config-overrides: ${{ inputs.release-config }}
+          release-artifact-id: ${{ inputs.artifact-id }}
+          tag: ${{ inputs.tag }}
+          target-ref: ${{ github.sha }}
+          working-directory: ${{ inputs.working-directory }}
+          changelog-summary: ${{ secrets.changelog-summary || inputs.changelog-summary }}

@@ -81,7 +81,9 @@
 #
 # `test: '{"coverage":"codecov"}'` enables OIDC upload. The expected coverage file is
 # `coverage.out`. A custom command must produce
-# the applicable file. `coverage` controls publication, not collection, and an
+# the applicable file. `test: '{"coverage":"coveralls"}'` publishes that same profile
+# to Coveralls with the job token and retains GitHub summaries/artifacts; enable
+# the repository in Coveralls first. `coverage` controls publication, not collection, and an
 # empty value still retains JUnit results. The reusable workflow declares
 # `id-token: write` for Codecov and callers must grant it, including for default
 # GitHub reports. Standalone GitHub reporting requires only read permissions.
@@ -117,7 +119,7 @@ name: Go Continuous Integration
         type: string
         default: "true"
       test:
-        description: true for default tests, a trusted Bash command, or a JSON object with command, coverage (`github`, `codecov` or empty), and race (boolean). false, null or empty disables tests. Coverage publication runs only on the last version; the command controls collection.
+        description: true for default tests, a trusted Bash command, or a JSON object with command, coverage (`github`, `codecov`, `coveralls` or empty), and race (boolean). false, null or empty disables tests. Coverage publication runs only on the last version; the command controls collection.
         type: string
         default: "true"
       audit:
@@ -185,7 +187,7 @@ jobs:
             }
             const lint = options('lint', process.env.LINT, {command: ''});
             const test = options('test', process.env.TEST, {"command": "", "coverage": "github", "race": true});
-            if (test && !['', 'github', 'codecov'].includes(test.coverage)) throw new Error('test.coverage must be github, codecov or empty.');
+            if (test && !['', 'github', 'codecov', 'coveralls'].includes(test.coverage)) throw new Error('test.coverage must be github, codecov, coveralls or empty.');
             const build = options('build', process.env.BUILD, {command: 'go build -mod=readonly -trimpath ./...', artifact: ''});
             const artifact = build?.artifact;
             if (artifact && (artifact === '.' || artifact.startsWith('/') || artifact.includes('\\') || artifact.split('/').includes('..') || /[\r\n*?]/.test(artifact))) {

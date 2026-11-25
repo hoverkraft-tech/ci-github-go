@@ -45,6 +45,8 @@ actions with GitHub reporting require only `contents: read`.
 ## Documentation
 
 - [Workflow reference](.github/workflows/continuous-integration.md)
+- [Build release archives](.github/workflows/build-release.md)
+- [Publish validated archives](.github/workflows/release.md)
 - [Contributing](CONTRIBUTING.md)
 - [Documentation index](docs/README.md)
 

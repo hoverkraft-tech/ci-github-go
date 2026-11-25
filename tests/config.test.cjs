@@ -115,3 +115,8 @@ test("rejects unsafe build artifact directories and empty commands", async () =>
     false,
   );
 });
+
+test("accepts Coveralls coverage configuration", async () => {
+  const result = await parse({ TEST: '{"coverage":"coveralls"}' });
+  assert.equal(JSON.parse(result.test).coverage, "coveralls");
+});

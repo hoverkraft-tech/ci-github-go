@@ -89,9 +89,12 @@ and Renovate automation. Enable the CI bot only after repository settings and
 branch protection are configured. Release and generated-documentation writes
 are gated on the client ID. Public CI needs none of these credentials.
 
-The release automation versions this Actions repository. It does not publish
-consumer libraries or application binaries. Configure consumer publishing in
-the consumer repository using its registry and release policy.
+The internal release automation versions this Actions repository. Public
+`build-release.yml` and `release.yml` package and publish consumer binaries through
+GoReleaser and the shared release action. Keep each consumer's platform targets and
+archive layout in its GoReleaser configuration. See the generated workflow references.
+The release workflow contract tests exercise tag collisions and artifact provenance;
+its dedicated CI fixture verifies a real GoReleaser archive transfer and checksum.
 
 ## Branding
 

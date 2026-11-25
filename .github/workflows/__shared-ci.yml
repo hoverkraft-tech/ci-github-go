@@ -24,6 +24,11 @@ jobs:
     permissions:
       contents: read
       id-token: write
+  test-release:
+    uses: $/.github/workflows/__test-workflow-release.yml
+    permissions:
+      actions: read
+      contents: read
   test-action-setup-go:
     uses: $/.github/workflows/__test-action-setup-go.yml
     permissions:
