@@ -52,7 +52,7 @@ on:
 permissions: {}
 jobs:
   release:
-    uses: hoverkraft-tech/ci-github-go/.github/workflows/release.yml@dcc9e10f1938e4496a40edc4e90eb0a6294a8bb2 # 0.0.1
+    uses: hoverkraft-tech/ci-github-go/.github/workflows/release.yml@2db38ba3c9d23770c04b71866551231470cd2994 # feat/reusable-go-release-workflows
     permissions:
       actions: read
       contents: write
