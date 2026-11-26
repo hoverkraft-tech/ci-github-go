@@ -144,7 +144,7 @@ on:
 permissions: {}
 jobs:
   continuous-integration:
-    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@3a72b809f7253a916ee2f4bcee59a66bbba131d3 # main
+    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@dcc9e10f1938e4496a40edc4e90eb0a6294a8bb2 # 0.0.1
     permissions:
       contents: read
       id-token: write
@@ -168,7 +168,7 @@ jobs:
       # Default: `true`
       lint: "true"
 
-      # true for default tests, a trusted Bash command, or a JSON object with command, coverage (`github`, `codecov` or empty), and race (boolean). false, null or empty disables tests. Coverage publication runs only on the last version; the command controls collection.
+      # true for defaults, a Bash command, or JSON options (command, coverage, coverage-reports, report-group, race). false, null or empty disables tests. Only the primary runtime publishes coverage.
       # Default: `true`
       test: "true"
 
@@ -197,18 +197,18 @@ jobs:
 
 ### Workflow Call Inputs
 
-| **Input**                   | **Description**                                                                                                                                                                                                                                                       | **Required** | **Type**    | **Default**         |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- | ------------------- |
-| **`runs-on`**               | JSON array of Linux runner labels for all jobs.                                                                                                                                                                                                                       | **false**    | **string**  | `["ubuntu-latest"]` |
-| **`checks`**                | Enable all checks, including build.                                                                                                                                                                                                                                   | **false**    | **boolean** | `true`              |
-| **`working-directory`**     | One project directory inside the checkout. Use a caller matrix for multiple projects.                                                                                                                                                                                 | **false**    | **string**  | `.`                 |
-| **`go-versions`**           | JSON array of Go versions. The last entry runs lint, audit and build and publishes coverage. Empty runs project detection once. An empty entry uses the project version.                                                                                              | **false**    | **string**  | -                   |
-| **`lint`**                  | true for default checks, a trusted Bash command, or a JSON object with command. false, null or empty disables lint.                                                                                                                                                   | **false**    | **string**  | `true`              |
-| **`test`**                  | true for default tests, a trusted Bash command, or a JSON object with command, coverage (`github`, `codecov` or empty), and race (boolean). false, null or empty disables tests. Coverage publication runs only on the last version; the command controls collection. | **false**    | **string**  | `true`              |
-| **`audit`**                 | Check production dependencies for known vulnerabilities.                                                                                                                                                                                                              | **false**    | **boolean** | `true`              |
-| **`dependency-review`**     | Review dependency changes on pull requests. Requires GitHub dependency review availability.                                                                                                                                                                           | **false**    | **boolean** | `true`              |
-| **`build`**                 | true for go build, a trusted Bash command, or a JSON object with command and artifact (one project-relative directory). false, null or empty disables build.                                                                                                          | **false**    | **string**  | `true`              |
-| **`golangci-lint-version`** | Pinned golangci-lint v2 release used by the lint action.                                                                                                                                                                                                              | **false**    | **string**  | `v2.15.0`           |
+| **Input**                   | **Description**                                                                                                                                                                                 | **Required** | **Type**    | **Default**         |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- | ------------------- |
+| **`runs-on`**               | JSON array of Linux runner labels for all jobs.                                                                                                                                                 | **false**    | **string**  | `["ubuntu-latest"]` |
+| **`checks`**                | Enable all checks, including build.                                                                                                                                                             | **false**    | **boolean** | `true`              |
+| **`working-directory`**     | One project directory inside the checkout. Use a caller matrix for multiple projects.                                                                                                           | **false**    | **string**  | `.`                 |
+| **`go-versions`**           | JSON array of Go versions. The last entry runs lint, audit and build and publishes coverage. Empty runs project detection once. An empty entry uses the project version.                        | **false**    | **string**  | -                   |
+| **`lint`**                  | true for default checks, a trusted Bash command, or a JSON object with command. false, null or empty disables lint.                                                                             | **false**    | **string**  | `true`              |
+| **`test`**                  | true for defaults, a Bash command, or JSON options (command, coverage, coverage-reports, report-group, race). false, null or empty disables tests. Only the primary runtime publishes coverage. | **false**    | **string**  | `true`              |
+| **`audit`**                 | Check production dependencies for known vulnerabilities.                                                                                                                                        | **false**    | **boolean** | `true`              |
+| **`dependency-review`**     | Review dependency changes on pull requests. Requires GitHub dependency review availability.                                                                                                     | **false**    | **boolean** | `true`              |
+| **`build`**                 | true for go build, a trusted Bash command, or a JSON object with command and artifact (one project-relative directory). false, null or empty disables build.                                    | **false**    | **string**  | `true`              |
+| **`golangci-lint-version`** | Pinned golangci-lint v2 release used by the lint action.                                                                                                                                        | **false**    | **string**  | `v2.15.0`           |
 
 <!-- inputs:end -->
 

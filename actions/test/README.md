@@ -60,6 +60,15 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 <!-- jscpd:ignore-end -->
 
+Native `coverage: github-code-quality` prepares Cobertura artifacts for the common
+[CI reports workflow](https://github.com/hoverkraft-tech/ci-github-common/blob/main/.github/workflows/ci-reports.md)
+and its opt-in publication workflow. Set `report-group` to the outer calling job
+and list every expected component in the collector. The default label is the
+repository-relative working directory, or `root`. Multiple reports need explicit
+stable labels. Reports must measure the PR head commit, not the PR merge commit.
+Keep merge-result validation separately when required. No upload permission is
+needed in this test action; only the publication job needs `code-quality: write`.
+
 <!-- overview:end -->
 
 <!-- jscpd:ignore-start -->
@@ -70,7 +79,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@3a72b809f7253a916ee2f4bcee59a66bbba131d3 # main
+- uses: hoverkraft-tech/ci-github-go/actions/test@dcc9e10f1938e4496a40edc4e90eb0a6294a8bb2 # 0.0.1
   with:
     # Go module directory.
     # Default: `.`
@@ -83,7 +92,13 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
     # Default: `true`
     race: "true"
 
-    # Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command.
+    # Native GitHub coverage reports as a JSON array of file, language and optional label.
+    # Empty converts coverage.out to cobertura.xml with the pinned Go converter; multiple reports require explicit unique labels.
+    # Every file must be Cobertura XML produced by the test command. Paths are relative
+    # to working-directory. Example: [{"file":"coverage.xml","language":"Go","label":"backend"}].
+    coverage-reports: ""
+
+    # Publication only: `github` (native go tool cover summary), `github-code-quality` (Cobertura artifact), `codecov`, or empty. Collection is controlled by the test command.
     # Default: `github`
     coverage: github
 
@@ -97,13 +112,17 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Inputs
 
-| **Input**               | **Description**                                                                                                               | **Required** | **Default** |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
-| **`working-directory`** | Go module directory.                                                                                                          | **false**    | `.`         |
-| **`command`**           | Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.                   | **false**    | -           |
-| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                              | **false**    | `true`      |
-| **`coverage`**          | Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command. | **false**    | `github`    |
-| **`report-group`**      | Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.       | **false**    | -           |
+| **Input**               | **Description**                                                                                                                                                           | **Required** | **Default** |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
+| **`working-directory`** | Go module directory.                                                                                                                                                      | **false**    | `.`         |
+| **`command`**           | Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.                                                               | **false**    | -           |
+| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                                                                          | **false**    | `true`      |
+| **`coverage-reports`**  | Native GitHub coverage reports as a JSON array of file, language and optional label.                                                                                      | **false**    | -           |
+|                         | Empty converts coverage.out to cobertura.xml with the pinned Go converter; multiple reports require explicit unique labels.                                               |              |             |
+|                         | Every file must be Cobertura XML produced by the test command. Paths are relative                                                                                         |              |             |
+|                         | to working-directory. Example: [{"file":"coverage.xml","language":"Go","label":"backend"}].                                                                               |              |             |
+| **`coverage`**          | Publication only: `github` (native go tool cover summary), `github-code-quality` (Cobertura artifact), `codecov`, or empty. Collection is controlled by the test command. | **false**    | `github`    |
+| **`report-group`**      | Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.                                                   | **false**    | -           |
 
 <!-- inputs:end -->
 
@@ -114,10 +133,11 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Outputs
 
-| **Output**                 | **Description**                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------- |
-| **`report-artifact-id`**   | Native report artifact ID. Empty when no reports were produced.                 |
-| **`coverage-artifact-id`** | Native coverage.out artifact ID for GitHub coverage, or empty when unavailable. |
+| **Output**                        | **Description**                                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **`report-artifact-id`**          | Native report artifact ID. Empty when no reports were produced.                                 |
+| **`native-coverage-artifact-id`** | Cobertura artifact for native GitHub publication, empty unless github-code-quality is selected. |
+| **`coverage-artifact-id`**        | Native coverage.out artifact ID for GitHub coverage, or empty when unavailable.                 |
 
 <!-- outputs:end -->
 
