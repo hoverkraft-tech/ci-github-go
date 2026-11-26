@@ -1,0 +1,47 @@
+---
+name: Internal - Test package action
+"on":
+  workflow_call: null
+permissions: {}
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.package.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Assert - Package contract tests
+        uses: hoverkraft-tech/ci-github-nodejs/actions/test@191d7230d57982bfc11d57f68b005f386a6d7fbf # 3.1.1
+        with:
+          command: test:ci
+          arguments: '["actions/package/action.test.cjs"]'
+          coverage: ""
+          comment: "false"
+      - name: Act - Package fixture
+        id: package
+        uses: $/actions/package
+        with:
+          working-directory: tests/go-project
+  verify:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: hoverkraft-tech/ci-github-common/actions/download-artifact@af0bdd6313bd49aaf4a8a7f0de005fb0db856b03 # 4.3.3
+        with:
+          artifact-ids: ${{ needs.package.outputs.artifact-id }}
+          path: ${{ runner.temp }}/go-release-fixture
+      - name: Verify retained archives and checksums
+        shell: bash
+        working-directory: ${{ runner.temp }}/go-release-fixture
+        run: |
+          sha256sum --check checksums.txt
+          tar -xzf sample_*.tar.gz
+          test "$(./sample)" = 5

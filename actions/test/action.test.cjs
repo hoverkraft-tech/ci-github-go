@@ -34,11 +34,13 @@ test("test configuration rejects unsupported coverage destinations", (t) => {
     }).status,
     0,
   );
-  assert.equal(
-    runActionStep(actionFile, "validate", directory, {
-      COVERAGE: "",
-      RACE: "true",
-    }).status,
-    0,
-  );
+  for (const coverage of ["", "github", "codecov", "coveralls"]) {
+    assert.equal(
+      runActionStep(actionFile, "validate", directory, {
+        COVERAGE: coverage,
+        RACE: "true",
+      }).status,
+      0,
+    );
+  }
 });

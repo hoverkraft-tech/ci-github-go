@@ -115,3 +115,22 @@ test("rejects unsafe build artifact directories and empty commands", async () =>
     false,
   );
 });
+
+test("accepts Coveralls coverage configuration", async () => {
+  const result = await parse({ TEST: '{"coverage":"coveralls"}' });
+  assert.equal(JSON.parse(result.test).coverage, "coveralls");
+});
+
+test("packaging is opt-in and accepts only declared GoReleaser settings", async () => {
+  assert.equal((await parse()).package, "null");
+  const snapshot = JSON.parse((await parse({ PACKAGE: "true" })).package);
+  assert.equal(snapshot.tag, "");
+  assert.match(snapshot["artifact-paths"], /checksums[.]txt/);
+  const release = JSON.parse(
+    (await parse({ PACKAGE: '{"tag":"v1.2.3"}' })).package,
+  );
+  assert.equal(release.tag, "v1.2.3");
+  for (const value of ['{"tag":false}', '{"unknown":true}', "go build", "[]"]) {
+    await assert.rejects(() => parse({ PACKAGE: value }));
+  }
+});

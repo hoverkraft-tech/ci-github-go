@@ -48,7 +48,9 @@ Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
 <!-- jscpd:ignore-end -->
 
 `coverage: "github"` is the default. Set `coverage: "codecov"` and grant the
-job `id-token: write` for OIDC upload of `coverage.out`. An empty coverage
+job `id-token: write` for OIDC upload of `coverage.out`. Use `coverage: "coveralls"`
+to send the same Go profile to Coveralls with the job token and keep native
+GitHub summaries and artifacts. Enable the repository in Coveralls first. An empty coverage
 value disables publication while retaining JUnit; collection is controlled by
 the command. Custom commands must produce the applicable report files.
 
@@ -70,7 +72,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@3a72b809f7253a916ee2f4bcee59a66bbba131d3 # main
+- uses: hoverkraft-tech/ci-github-go/actions/test@2db38ba3c9d23770c04b71866551231470cd2994 # feat/reusable-go-release-workflows
   with:
     # Go module directory.
     # Default: `.`
@@ -83,7 +85,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
     # Default: `true`
     race: "true"
 
-    # Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command.
+    # Publication only: `github` (native go tool cover summary), `codecov`, `coveralls`, or empty. Collection is controlled by the test command.
     # Default: `github`
     coverage: github
 
@@ -97,13 +99,13 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Inputs
 
-| **Input**               | **Description**                                                                                                               | **Required** | **Default** |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
-| **`working-directory`** | Go module directory.                                                                                                          | **false**    | `.`         |
-| **`command`**           | Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.                   | **false**    | -           |
-| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                              | **false**    | `true`      |
-| **`coverage`**          | Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command. | **false**    | `github`    |
-| **`report-group`**      | Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.       | **false**    | -           |
+| **Input**               | **Description**                                                                                                                            | **Required** | **Default** |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------ | ----------- |
+| **`working-directory`** | Go module directory.                                                                                                                       | **false**    | `.`         |
+| **`command`**           | Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.                                | **false**    | -           |
+| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                                           | **false**    | `true`      |
+| **`coverage`**          | Publication only: `github` (native go tool cover summary), `codecov`, `coveralls`, or empty. Collection is controlled by the test command. | **false**    | `github`    |
+| **`report-group`**      | Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.                    | **false**    | -           |
 
 <!-- inputs:end -->
 
@@ -114,10 +116,10 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Outputs
 
-| **Output**                 | **Description**                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------- |
-| **`report-artifact-id`**   | Native report artifact ID. Empty when no reports were produced.                 |
-| **`coverage-artifact-id`** | Native coverage.out artifact ID for GitHub coverage, or empty when unavailable. |
+| **Output**                 | **Description**                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| **`report-artifact-id`**   | Native report artifact ID. Empty when no reports were produced.                              |
+| **`coverage-artifact-id`** | Native coverage.out artifact ID for GitHub or Coveralls coverage, or empty when unavailable. |
 
 <!-- outputs:end -->
 

@@ -1,0 +1,14 @@
+---
+version: 2
+project_name: sample
+builds:
+  - main: ./cmd/sample
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64]
+archives:
+  - formats: [tar.gz]
+checksum:
+  name_template: checksums.txt
+changelog:
+  disable: true

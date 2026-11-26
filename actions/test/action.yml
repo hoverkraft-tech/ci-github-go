@@ -20,7 +20,9 @@ description: |
   <!-- jscpd:ignore-end -->
 
   `coverage: "github"` is the default. Set `coverage: "codecov"` and grant the
-  job `id-token: write` for OIDC upload of `coverage.out`. An empty coverage
+  job `id-token: write` for OIDC upload of `coverage.out`. Use `coverage: "coveralls"`
+  to send the same Go profile to Coveralls with the job token and keep native
+  GitHub summaries and artifacts. Enable the repository in Coveralls first. An empty coverage
   value disables publication while retaining JUnit; collection is controlled by
   the command. Custom commands must produce the applicable report files.
 
@@ -46,7 +48,7 @@ inputs:
     description: Enable the race detector for the default command. Requires CGO and a C compiler.
     default: "true"
   coverage:
-    description: "Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command."
+    description: "Publication only: `github` (native go tool cover summary), `codecov`, `coveralls`, or empty. Collection is controlled by the test command."
     default: github
   report-group:
     description: Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.
@@ -56,7 +58,7 @@ outputs:
     description: Native report artifact ID. Empty when no reports were produced.
     value: ${{ steps.report-artifact.outputs.artifact-id }}
   coverage-artifact-id:
-    description: Native coverage.out artifact ID for GitHub coverage, or empty when unavailable.
+    description: Native coverage.out artifact ID for GitHub or Coveralls coverage, or empty when unavailable.
     value: ${{ steps.report-artifact.outputs.coverage-artifact-id }}
 runs:
   using: composite
@@ -72,7 +74,7 @@ runs:
         COVERAGE: ${{ inputs.coverage }}
       run: |
         case "$RACE" in true|false) ;; *) echo 'race must be true or false.' >&2; exit 1 ;; esac
-        case "$COVERAGE" in github|codecov|'') ;; *) echo 'coverage must be github, codecov or empty.' >&2; exit 1 ;; esac
+        case "$COVERAGE" in github|codecov|coveralls|'') ;; *) echo 'coverage must be github, codecov, coveralls or empty.' >&2; exit 1 ;; esac
     - id: run
       shell: bash
       working-directory: ${{ steps.directory.outputs.absolute-path }}
@@ -104,10 +106,10 @@ runs:
         report-paths: auto:test
         report-name: Go test results
         group: ${{ inputs.report-group || github.job }}
-        native-coverage: ${{ inputs.coverage == 'github' }}
+        native-coverage: ${{ (inputs.coverage == 'github' || inputs.coverage == 'coveralls') }}
     - id: go-coverage
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && inputs.coverage == 'github' }}
+      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && (inputs.coverage == 'github' || inputs.coverage == 'coveralls') }}
       env:
         DIRECTORY: ${{ steps.directory.outputs.absolute-path }}
       with:
@@ -125,3 +127,10 @@ runs:
         working-directory: ${{ steps.directory.outputs.absolute-path }}
         files: coverage.out
         fail-ci-if-error: "true"
+    - name: Upload coverage to Coveralls
+      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && inputs.coverage == 'coveralls' }}
+      uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
+      with:
+        base-path: ${{ steps.directory.outputs.absolute-path }}
+        file: ${{ steps.directory.outputs.absolute-path }}/coverage.out
+        format: golang
