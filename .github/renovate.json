@@ -31,6 +31,13 @@
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "golangci/golangci-lint"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^actions/test/action\\.yml$/"],
+      "matchStrings": ["GOCOVER_COBERTURA_VERSION: (?<currentValue>v[^\\s]+)"],
+      "datasourceTemplate": "go",
+      "depNameTemplate": "github.com/boumenot/gocover-cobertura"
     }
   ]
 }

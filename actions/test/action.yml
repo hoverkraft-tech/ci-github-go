@@ -31,6 +31,15 @@ description: |
   See the [continuous integration workflow](../../.github/workflows/continuous-integration.md#reports-and-permissions) for consolidated reporting and permissions.
 
   <!-- jscpd:ignore-end -->
+
+  Native `coverage: github-code-quality` prepares Cobertura artifacts for the common
+  [CI reports workflow](https://github.com/hoverkraft-tech/ci-github-common/blob/main/.github/workflows/ci-reports.md)
+  and its opt-in publication workflow. Set `report-group` to the outer calling job
+  and list every expected component in the collector. The default label is the
+  repository-relative working directory, or `root`. Multiple reports need explicit
+  stable labels. Reports must measure the PR head commit, not the PR merge commit.
+  Keep merge-result validation separately when required. No upload permission is
+  needed in this test action; only the publication job needs `code-quality: write`.
 author: hoverkraft
 branding:
   icon: package
@@ -45,8 +54,15 @@ inputs:
   race:
     description: Enable the race detector for the default command. Requires CGO and a C compiler.
     default: "true"
+  coverage-reports:
+    description: |
+      Native GitHub coverage reports as a JSON array of file, language and optional label.
+      Empty converts coverage.out to cobertura.xml with the pinned Go converter; multiple reports require explicit unique labels.
+      Every file must be Cobertura XML produced by the test command. Paths are relative
+      to working-directory. Example: [{"file":"coverage.xml","language":"Go","label":"backend"}].
+    default: ""
   coverage:
-    description: "Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command."
+    description: "Publication only: `github` (native go tool cover summary), `github-code-quality` (Cobertura artifact), `codecov`, or empty. Collection is controlled by the test command."
     default: github
   report-group:
     description: Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.
@@ -55,6 +71,9 @@ outputs:
   report-artifact-id:
     description: Native report artifact ID. Empty when no reports were produced.
     value: ${{ steps.report-artifact.outputs.artifact-id }}
+  native-coverage-artifact-id:
+    description: Cobertura artifact for native GitHub publication, empty unless github-code-quality is selected.
+    value: ${{ steps.native-coverage.outputs.artifact-id }}
   coverage-artifact-id:
     description: Native coverage.out artifact ID for GitHub coverage, or empty when unavailable.
     value: ${{ steps.report-artifact.outputs.coverage-artifact-id }}
@@ -72,7 +91,7 @@ runs:
         COVERAGE: ${{ inputs.coverage }}
       run: |
         case "$RACE" in true|false) ;; *) echo 'race must be true or false.' >&2; exit 1 ;; esac
-        case "$COVERAGE" in github|codecov|'') ;; *) echo 'coverage must be github, codecov or empty.' >&2; exit 1 ;; esac
+        case "$COVERAGE" in github|github-code-quality|codecov|'') ;; *) echo 'coverage must be github, github-code-quality, codecov or empty.' >&2; exit 1 ;; esac
     - id: run
       shell: bash
       working-directory: ${{ steps.directory.outputs.absolute-path }}
@@ -95,16 +114,28 @@ runs:
         args=(-mod=readonly -count=1 -timeout=5m -covermode=atomic -coverprofile=coverage.out)
         if [ "$RACE" = true ]; then args+=(-race); fi
         go run "gotest.tools/gotestsum@$GOTESTSUM_VERSION" --junitfile=junit.xml --format=testname -- "${args[@]}" ./...
+    - name: Convert native Go coverage to Cobertura
+      id: cobertura
+      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && inputs.coverage == 'github-code-quality' && inputs.coverage-reports == '' }}
+      shell: bash
+      working-directory: ${{ steps.directory.outputs.absolute-path }}
+      env:
+        GOCOVER_COBERTURA_VERSION: v1.5.0
+        GOTOOLCHAIN: local
+        GOWORK: "off"
+      run: |
+        test -s coverage.out || { echo 'Native coverage requires coverage.out.' >&2; exit 1; }
+        go run "github.com/boumenot/gocover-cobertura@$GOCOVER_COBERTURA_VERSION" < coverage.out > cobertura.xml
     - name: Report test results
       id: report-artifact
       if: ${{ !cancelled() && steps.run.outcome != 'skipped' }}
       uses: $/.github/actions/parse-ci-reports
       with:
         directory: ${{ steps.directory.outputs.absolute-path }}
-        report-paths: auto:test
+        report-paths: ${{ inputs.coverage == 'github-code-quality' && 'auto:test,auto:coverage' || 'auto:test' }}
         report-name: Go test results
         group: ${{ inputs.report-group || github.job }}
-        native-coverage: ${{ inputs.coverage == 'github' }}
+        native-coverage: ${{ inputs.coverage == 'github' || inputs.coverage == 'github-code-quality' }}
     - id: go-coverage
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
       if: ${{ !cancelled() && steps.run.outcome != 'skipped' && inputs.coverage == 'github' }}
@@ -125,3 +156,12 @@ runs:
         working-directory: ${{ steps.directory.outputs.absolute-path }}
         files: coverage.out
         fail-ci-if-error: "true"
+
+    - name: Prepare native GitHub coverage
+      id: native-coverage
+      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && inputs.coverage == 'github-code-quality' }}
+      uses: hoverkraft-tech/ci-github-common/actions/quality/coverage-reports@71ce8b3ff53d6673617b19fa01d6637c916d4948 # coverage support (PR #683, unreleased)
+      with:
+        working-directory: ${{ steps.directory.outputs.absolute-path }}
+        report-group: ${{ inputs.report-group || github.job }}
+        reports: ${{ inputs.coverage-reports || '[{"file":"cobertura.xml","language":"Go"}]' }}

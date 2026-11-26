@@ -92,6 +92,18 @@
 # for standalone action usage. Pin the workflow to a reviewed commit SHA in production.
 
 ---
+#
+# ## Native GitHub coverage
+#
+# Select `test: '{"coverage":"github-code-quality","report-group":"backend"}'`.
+# This tests the PR head commit; existing destinations keep their usual merge-ref
+# checkout. Keep a separate merge-result test invocation when your policy requires it.
+# Only the primary runtime publishes coverage. Optionally set test.coverage-reports
+# to an array of {file, language, label} for multiple Cobertura components.
+# Call the common ci-reports workflow with every expected job/label, then its
+# publish-coverage workflow. Only publication needs code-quality: write.
+# See [native coverage collection](https://github.com/hoverkraft-tech/ci-github-common/blob/main/.github/workflows/ci-reports.md#native-github-coverage).
+
 name: Go Continuous Integration
 "on":
   workflow_call:
@@ -117,7 +129,7 @@ name: Go Continuous Integration
         type: string
         default: "true"
       test:
-        description: true for default tests, a trusted Bash command, or a JSON object with command, coverage (`github`, `codecov` or empty), and race (boolean). false, null or empty disables tests. Coverage publication runs only on the last version; the command controls collection.
+        description: "true for defaults, a Bash command, or JSON options (command, coverage, coverage-reports, report-group, race). false, null or empty disables tests. Only the primary runtime publishes coverage."
         type: string
         default: "true"
       audit:
@@ -179,13 +191,14 @@ jobs:
               if (unknown.length) throw new Error('Unknown ' + name + ' options: ' + unknown.join(', '));
               config = {...defaults, ...config};
               for (const [key, value] of Object.entries(config)) {
-                if (typeof value !== typeof defaults[key]) throw new Error(name + '.' + key + ' has the wrong type.');
+                if (Array.isArray(defaults[key]) ? !Array.isArray(value) : typeof value !== typeof defaults[key]) throw new Error(name + '.' + key + ' has the wrong type.');
               }
               return config;
             }
             const lint = options('lint', process.env.LINT, {command: ''});
-            const test = options('test', process.env.TEST, {"command": "", "coverage": "github", "race": true});
-            if (test && !['', 'github', 'codecov'].includes(test.coverage)) throw new Error('test.coverage must be github, codecov or empty.');
+            const test = options('test', process.env.TEST, {"command": "", "coverage": "github", "race": true, "coverage-reports": [], "report-group": ""});
+            if (test && test['report-group'] && !/^[\w-]+$/.test(test['report-group'])) throw new Error('test.report-group must be a job ID.');
+            if (test && !['', 'github', 'github-code-quality', 'codecov'].includes(test.coverage)) throw new Error('test.coverage must be github, github-code-quality, codecov or empty.');
             const build = options('build', process.env.BUILD, {command: 'go build -mod=readonly -trimpath ./...', artifact: ''});
             const artifact = build?.artifact;
             if (artifact && (artifact === '.' || artifact.startsWith('/') || artifact.includes('\\') || artifact.split('/').includes('..') || /[\r\n*?]/.test(artifact))) {
@@ -236,7 +249,10 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - *checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ fromJSON(needs.configuration.outputs.test).coverage == 'github-code-quality' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: $/actions/setup-go
         with:
           working-directory: ${{ inputs.working-directory }}
@@ -245,6 +261,8 @@ jobs:
         with:
           working-directory: ${{ inputs.working-directory }}
           command: ${{ fromJSON(needs.configuration.outputs.test).command }}
+          report-group: ${{ fromJSON(needs.configuration.outputs.test).report-group }}
+          coverage-reports: ${{ fromJSON(needs.configuration.outputs.test).coverage-reports[0] && toJSON(fromJSON(needs.configuration.outputs.test).coverage-reports) || '' }}
           coverage: ${{ matrix.version == needs.configuration.outputs.primary-version && fromJSON(needs.configuration.outputs.test).coverage || '' }}
           race: ${{ fromJSON(needs.configuration.outputs.test).race }}
     strategy:
