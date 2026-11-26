@@ -94,6 +94,12 @@ with:
 inside the checkout. Each invocation uses a unique artifact name.
 Build output is not published as a release.
 
+Set `package: "true"` to produce GoReleaser snapshot archives after enabled checks.
+For releases, pass `package: '{"tag":"v1.2.3"}'` using the tag from
+[prepare-package-release](prepare-package-release.md). The immutable
+`package-artifact-id` is passed unchanged to [release](release.md). Packaging uses
+the primary Go version and the project GoReleaser configuration; it never publishes.
+
 ### Reports and permissions
 
 Tests retain JUnit and supported coverage files for seven days, including after
@@ -146,7 +152,7 @@ on:
 permissions: {}
 jobs:
   continuous-integration:
-    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@2db38ba3c9d23770c04b71866551231470cd2994 # feat/reusable-go-release-workflows
+    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@86f7d46b31948da93b2bcf78478e3180b908a6b6 # feat/reusable-go-release-workflows
     permissions:
       contents: read
       id-token: write
@@ -186,6 +192,10 @@ jobs:
       # Default: `true`
       build: "true"
 
+      # true for GoReleaser snapshot archives, or JSON with tag, goreleaser-version and artifact-paths. false, null or empty disables packaging. Runs after all enabled checks pass.
+      # Default: `false`
+      package: "false"
+
       # Pinned golangci-lint v2 release used by the lint action.
       # Default: `v2.15.0`
       golangci-lint-version: v2.15.0
@@ -210,6 +220,7 @@ jobs:
 | **`audit`**                 | Check production dependencies for known vulnerabilities.                                                                                                                                                                                                                           | **false**    | **boolean** | `true`              |
 | **`dependency-review`**     | Review dependency changes on pull requests. Requires GitHub dependency review availability.                                                                                                                                                                                        | **false**    | **boolean** | `true`              |
 | **`build`**                 | true for go build, a trusted Bash command, or a JSON object with command and artifact (one project-relative directory). false, null or empty disables build.                                                                                                                       | **false**    | **string**  | `true`              |
+| **`package`**               | true for GoReleaser snapshot archives, or JSON with tag, goreleaser-version and artifact-paths. false, null or empty disables packaging. Runs after all enabled checks pass.                                                                                                       | **false**    | **string**  | `false`             |
 | **`golangci-lint-version`** | Pinned golangci-lint v2 release used by the lint action.                                                                                                                                                                                                                           | **false**    | **string**  | `v2.15.0`           |
 
 <!-- inputs:end -->
@@ -221,9 +232,10 @@ jobs:
 
 ## Outputs
 
-| **Output**              | **Description**                                      |
-| ----------------------- | ---------------------------------------------------- |
-| **`build-artifact-id`** | Build artifact ID when build.artifact is configured. |
+| **Output**                | **Description**                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| **`package-artifact-id`** | Immutable GoReleaser archive artifact ID, available only after successful packaging. |
+| **`build-artifact-id`**   | Build artifact ID when build.artifact is configured.                                 |
 
 <!-- outputs:end -->
 
