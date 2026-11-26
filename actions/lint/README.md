@@ -2,12 +2,6 @@
 
 # ![Icon](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJmZWF0aGVyIGZlYXRoZXItcGFja2FnZSIgY29sb3I9ImJsdWUiPjxsaW5lIHgxPSIxNi41IiB5MT0iOS40IiB4Mj0iNy41IiB5Mj0iNC4yMSI+PC9saW5lPjxwYXRoIGQ9Ik0yMSAxNlY4YTIgMiAwIDAgMC0xLTEuNzNsLTctNGEyIDIgMCAwIDAtMiAwbC03IDRBMiAyIDAgMCAwIDMgOHY4YTIgMiAwIDAgMCAxIDEuNzNsNyA0YTIgMiAwIDAgMCAyIDBsNy00QTIgMiAwIDAgMCAyMSAxNnoiPjwvcGF0aD48cG9seWxpbmUgcG9pbnRzPSIzLjI3IDYuOTYgMTIgMTIuMDEgMjAuNzMgNi45NiI+PC9wb2x5bGluZT48bGluZSB4MT0iMTIiIHkxPSIyMi4wOCIgeDI9IjEyIiB5Mj0iMTIiPjwvbGluZT48L3N2Zz4=) GitHub Action: Lint Go
 
-<div align="center">
-  <img src="../../.github/logo.svg" width="60px" align="center" alt="Lint Go" />
-</div>
-
----
-
 <!-- header:end -->
 
 <!-- jscpd:ignore-start -->
@@ -56,7 +50,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/lint@eac34b0e29b78265265a2021a9099f73ab699e0c # fix/consolidated-go-coverage
+- uses: hoverkraft-tech/ci-github-go/actions/lint@0814116d658bad2bf0f56c9e61b492a46b43dd88 # feat/native-github-coverage
   with:
     # Go module directory.
     # Default: `.`
@@ -69,8 +63,8 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
     # Trusted Bash command replacing the default formatting and lint checks. Project configuration remains authoritative.
     command: ""
 
-    # Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.
-    report-group: ""
+    # Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.
+    report-plan: ""
 ```
 
 <!-- usage:end -->
@@ -79,12 +73,12 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Inputs
 
-| **Input**                   | **Description**                                                                                                         | **Required** | **Default** |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
-| **`working-directory`**     | Go module directory.                                                                                                    | **false**    | `.`         |
-| **`golangci-lint-version`** | Pinned golangci-lint v2 release.                                                                                        | **false**    | `v2.15.0`   |
-| **`command`**               | Trusted Bash command replacing the default formatting and lint checks. Project configuration remains authoritative.     | **false**    | -           |
-| **`report-group`**          | Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted. | **false**    | -           |
+| **Input**                   | **Description**                                                                                                     | **Required** | **Default** |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
+| **`working-directory`**     | Go module directory.                                                                                                | **false**    | `.`         |
+| **`golangci-lint-version`** | Pinned golangci-lint v2 release.                                                                                    | **false**    | `v2.15.0`   |
+| **`command`**               | Trusted Bash command replacing the default formatting and lint checks. Project configuration remains authoritative. | **false**    | -           |
+| **`report-plan`**           | Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.                 | **false**    | -           |
 
 <!-- inputs:end -->
 
@@ -95,9 +89,10 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Outputs
 
-| **Output**               | **Description**                                                 |
-| ------------------------ | --------------------------------------------------------------- |
-| **`report-artifact-id`** | Native report artifact ID. Empty when no reports were produced. |
+| **Output**               | **Description**                                              |
+| ------------------------ | ------------------------------------------------------------ |
+| **`report-plan`**        | Expected lint report metadata. Forward from standalone jobs. |
+| **`report-artifact-id`** | Native lint report bundle.                                   |
 
 <!-- outputs:end -->
 

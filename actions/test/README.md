@@ -2,12 +2,6 @@
 
 # ![Icon](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJmZWF0aGVyIGZlYXRoZXItcGFja2FnZSIgY29sb3I9ImJsdWUiPjxsaW5lIHgxPSIxNi41IiB5MT0iOS40IiB4Mj0iNy41IiB5Mj0iNC4yMSI+PC9saW5lPjxwYXRoIGQ9Ik0yMSAxNlY4YTIgMiAwIDAgMC0xLTEuNzNsLTctNGEyIDIgMCAwIDAtMiAwbC03IDRBMiAyIDAgMCAwIDMgOHY4YTIgMiAwIDAgMCAxIDEuNzNsNyA0YTIgMiAwIDAgMCAyIDBsNy00QTIgMiAwIDAgMCAyMSAxNnoiPjwvcGF0aD48cG9seWxpbmUgcG9pbnRzPSIzLjI3IDYuOTYgMTIgMTIuMDEgMjAuNzMgNi45NiI+PC9wb2x5bGluZT48bGluZSB4MT0iMTIiIHkxPSIyMi4wOCIgeDI9IjEyIiB5Mj0iMTIiPjwvbGluZT48L3N2Zz4=) GitHub Action: Test Go
 
-<div align="center">
-  <img src="../../.github/logo.svg" width="60px" align="center" alt="Test Go" />
-</div>
-
----
-
 <!-- header:end -->
 
 <!-- jscpd:ignore-start -->
@@ -29,45 +23,15 @@
 
 ## Overview
 
-Run Go tests with gotestsum, JUnit output and atomic coverage.
+Run Go tests and retain native test and coverage reports.
 
-Defaults enable `-race`, `-count=1` and a five-minute package timeout.
-The race detector requires CGO and a C compiler on a supported Linux runner;
-set `race: "false"` when unavailable. A trusted Bash `command` replaces defaults
-and must produce JUnit for test reporting and `coverage.out` for coverage.
-GitHub coverage uses native `go tool cover` summaries and retains `coverage.out`;
-the common report parser handles JUnit, not the native Go coverage format.
-Native coverage is retained in a separate `go-coverage-*` artifact, so consolidated
-CI reports receive only supported files. Coverage details remain in the test job summary.
+Use the matching setup action first. Commands must generate JUnit reports.
+Coverage collection requires Cobertura XML. The test command controls instrumentation.
 
-<!-- jscpd:ignore-start -->
-<!-- Shared setup and reporting guidance for standalone actions. -->
-
-Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
-
-<!-- jscpd:ignore-end -->
-
-`coverage: "github"` is the default. Set `coverage: "codecov"` and grant the
-job `id-token: write` for OIDC upload of `coverage.out`. An empty coverage
-value disables publication while retaining JUnit; collection is controlled by
-the command. Custom commands must produce the applicable report files.
-
-<!-- jscpd:ignore-start -->
-<!-- Shared setup and reporting guidance for standalone actions. -->
-
-Native reports survive command failures and are retained for seven days.
-See the [continuous integration workflow](../../.github/workflows/continuous-integration.md#reports-and-permissions) for consolidated reporting and permissions.
-
-<!-- jscpd:ignore-end -->
-
-Native `coverage: github-code-quality` prepares Cobertura artifacts for the common
-[CI reports workflow](https://github.com/hoverkraft-tech/ci-github-common/blob/main/.github/workflows/ci-reports.md)
-and its opt-in publication workflow. Set `report-group` to the outer calling job
-and list every expected component in the collector. The default label is the
-repository-relative working directory, or `root`. Multiple reports need explicit
-stable labels. Reports must measure the PR head commit, not the PR merge commit.
-Keep merge-result validation separately when required. No upload permission is
-needed in this test action; only the publication job needs `code-quality: write`.
+Forward report-plan from standalone jobs, or use the reusable CI workflow, which
+exposes the complete expected plan automatically. Choose external coverage
+publication once in the common ci-reports workflow. This action posts no comments
+and needs no publication permissions. Available reports survive test failures.
 
 <!-- overview:end -->
 
@@ -79,7 +43,7 @@ needed in this test action; only the publication job needs `code-quality: write`
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@dcc9e10f1938e4496a40edc4e90eb0a6294a8bb2 # 0.0.1
+- uses: hoverkraft-tech/ci-github-go/actions/test@0814116d658bad2bf0f56c9e61b492a46b43dd88 # feat/native-github-coverage
   with:
     # Go module directory.
     # Default: `.`
@@ -92,18 +56,15 @@ needed in this test action; only the publication job needs `code-quality: write`
     # Default: `true`
     race: "true"
 
-    # Native GitHub coverage reports as a JSON array of file, language and optional label.
-    # Empty converts coverage.out to cobertura.xml with the pinned Go converter; multiple reports require explicit unique labels.
-    # Every file must be Cobertura XML produced by the test command. Paths are relative
-    # to working-directory. Example: [{"file":"coverage.xml","language":"Go","label":"backend"}].
+    # Optional JSON array of Cobertura file, language and label. Empty uses cobertura.xml and the project directory as its stable label.
     coverage-reports: ""
 
-    # Publication only: `github` (native go tool cover summary), `github-code-quality` (Cobertura artifact), `codecov`, or empty. Collection is controlled by the test command.
-    # Default: `github`
-    coverage: github
+    # Require and collect Cobertura coverage. Set false to retain only available native diagnostics. Instrumentation is controlled by the test command.
+    # Default: `true`
+    coverage: "true"
 
-    # Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.
-    report-group: ""
+    # Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.
+    report-plan: ""
 ```
 
 <!-- usage:end -->
@@ -112,17 +73,14 @@ needed in this test action; only the publication job needs `code-quality: write`
 
 ## Inputs
 
-| **Input**               | **Description**                                                                                                                                                           | **Required** | **Default** |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
-| **`working-directory`** | Go module directory.                                                                                                                                                      | **false**    | `.`         |
-| **`command`**           | Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.                                                               | **false**    | -           |
-| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                                                                          | **false**    | `true`      |
-| **`coverage-reports`**  | Native GitHub coverage reports as a JSON array of file, language and optional label.                                                                                      | **false**    | -           |
-|                         | Empty converts coverage.out to cobertura.xml with the pinned Go converter; multiple reports require explicit unique labels.                                               |              |             |
-|                         | Every file must be Cobertura XML produced by the test command. Paths are relative                                                                                         |              |             |
-|                         | to working-directory. Example: [{"file":"coverage.xml","language":"Go","label":"backend"}].                                                                               |              |             |
-| **`coverage`**          | Publication only: `github` (native go tool cover summary), `github-code-quality` (Cobertura artifact), `codecov`, or empty. Collection is controlled by the test command. | **false**    | `github`    |
-| **`report-group`**      | Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.                                                   | **false**    | -           |
+| **Input**               | **Description**                                                                                                                                   | **Required** | **Default** |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
+| **`working-directory`** | Go module directory.                                                                                                                              | **false**    | `.`         |
+| **`command`**           | Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.                                       | **false**    | -           |
+| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                                                  | **false**    | `true`      |
+| **`coverage-reports`**  | Optional JSON array of Cobertura file, language and label. Empty uses cobertura.xml and the project directory as its stable label.                | **false**    | -           |
+| **`coverage`**          | Require and collect Cobertura coverage. Set false to retain only available native diagnostics. Instrumentation is controlled by the test command. | **false**    | `true`      |
+| **`report-plan`**       | Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.                                               | **false**    | -           |
 
 <!-- inputs:end -->
 
@@ -133,11 +91,10 @@ needed in this test action; only the publication job needs `code-quality: write`
 
 ## Outputs
 
-| **Output**                        | **Description**                                                                                 |
-| --------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **`report-artifact-id`**          | Native report artifact ID. Empty when no reports were produced.                                 |
-| **`native-coverage-artifact-id`** | Cobertura artifact for native GitHub publication, empty unless github-code-quality is selected. |
-| **`coverage-artifact-id`**        | Native coverage.out artifact ID for GitHub coverage, or empty when unavailable.                 |
+| **Output**               | **Description**                                                       |
+| ------------------------ | --------------------------------------------------------------------- |
+| **`report-plan`**        | Expected report metadata. Forward from standalone jobs.               |
+| **`report-artifact-id`** | Native report bundle, including available diagnostics after failures. |
 
 <!-- outputs:end -->
 
