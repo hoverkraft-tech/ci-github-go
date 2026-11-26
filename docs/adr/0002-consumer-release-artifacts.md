@@ -1,6 +1,6 @@
 # ADR 0002: Separate consumer packaging from publication
 
-- Status: Accepted
+- Status: Superseded by [ADR 0003](0003-consistent-consumer-release-flow.md)
 - Date: 2026-11-25
 
 ## Context

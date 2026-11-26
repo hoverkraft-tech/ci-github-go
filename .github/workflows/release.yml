@@ -1,32 +1,32 @@
-# Publish the exact Go archives retained by build-release.yml after successful validation.
+# Publish the exact Go archives retained by continuous-integration.yml after successful validation.
 #
-# Plan the tag with ci-github-publish/actions/release/plan, skip unchanged releases,
-# and pass that tag to build-release.yml after all required CI checks. Then call this
-# workflow with its artifact-id and the same tag and release-config. Publication
-# verifies the artifact's run, commit, tag and availability before creating a release.
-# No checkout, compilation or GoReleaser execution happens during publication.
+# Call prepare-package-release.yml first. Continue only when its status is ready.
+# Enable packaging in continuous-integration.yml with the prepared tag, then pass
+# package-artifact-id and that tag here. Use the same release-config throughout.
+# Preparation handles no-change runs and already-published releases. A manual tag
+# retry verifies the existing tag before packaging. Source tags are never overwritten.
 #
-# Grant actions read, contents write and pull-requests read to the calling job.
-# Use only trusted release triggers and require successful validation through needs.
-# Pull request events are rejected. Optional environment protection applies only
-# to the publication job. No repository bot credentials are needed.
+# Publication verifies the artifact run, commit, tag and availability before creating
+# a release. It does not rebuild. Grant actions read, contents write and pull-requests
+# read to the calling job, and require successful validation through needs.
+# Pull request publication is rejected. Optional environment protection applies to
+# publication. No repository bot credentials are needed.
 #
 # changelog-summary accepts the complete ci-github-publish JSON configuration;
-# use the secret for credentials. An empty value disables summarization.
-# Publication-only reruns reuse the same artifact ID; expired/deleted artifacts fail.
-# Full reruns produce a new ID. The shared release action owns release creation,
-# summary failures and asset recovery. Pin callers to a reviewed commit SHA.
+# use the secret for credentials. Empty disables summarization. Publication-only
+# reruns reuse the same artifact ID; expired or deleted artifacts fail. A full rerun
+# produces a new ID. The shared release action owns release notes and asset recovery.
 ---
 name: Publish Go release
 "on":
   workflow_call:
     inputs:
       tag:
-        description: Planned semantic-version tag used by build-release.yml.
+        description: Prepared semantic-version tag used for packaging.
         type: string
         required: true
       artifact-id:
-        description: Immutable build-release.yml artifact ID from this run and commit. The caller must require successful validation.
+        description: Immutable package-artifact-id from continuous-integration.yml in this run and commit. The caller must require successful validation.
         type: string
         required: true
       working-directory:

@@ -1,0 +1,96 @@
+# Package Go binaries using the project GoReleaser v2 configuration without publishing.
+# Check out the full Git history before calling this action. An empty tag produces
+# snapshot archives; a planned tag packages the current commit and rejects tag conflicts.
+# Only a local tag is created. The uploaded archives and checksums retain their run,
+# commit and tag identity for release.yml. Call after all required validation.
+# Requires a Linux runner with a supported Go toolchain. See the
+# [release workflow](../../.github/workflows/release.md) for the complete release flow.
+---
+name: Go - Package
+description: Package GoReleaser archives and checksums without publishing.
+author: Hoverkraft
+branding:
+  icon: package
+  color: blue
+inputs:
+  working-directory:
+    description: Go project containing the GoReleaser v2 configuration.
+    default: .
+  go-version:
+    description: Go version for packaging; empty uses project detection.
+    default: ""
+  tag:
+    description: Planned semantic-version tag, optionally prefixed with v. Empty builds snapshots.
+    default: ""
+  goreleaser-version:
+    description: GoReleaser v2 version constraint.
+    default: "~> v2"
+  artifact-paths:
+    description: Archive and checksum globs relative to working-directory, one per line.
+    default: |
+      dist/*.tar.gz
+      dist/*.zip
+      dist/checksums.txt
+outputs:
+  artifact-id:
+    description: Immutable artifact ID containing archives and checksums from this run and commit.
+    value: ${{ steps.upload.outputs.artifact-id }}
+runs:
+  using: composite
+  steps:
+    - uses: $/actions/setup-go
+      with:
+        working-directory: ${{ inputs.working-directory }}
+        go-version: ${{ inputs.go-version }}
+    - name: Set planned version locally
+      id: tag
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ inputs.tag }}
+      run: |
+        if [ -z "$RELEASE_TAG" ]; then exit 0; fi
+        if ! [[ "$RELEASE_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+          echo 'tag must be a semantic version, optionally prefixed with v.' >&2
+          exit 1
+        fi
+        if commit=$(git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG^{commit}"); then
+          test "$commit" = "$GITHUB_SHA" || { echo 'Tag belongs to a different commit.' >&2; exit 1; }
+        else
+          git -c tag.gpgSign=false tag -- "$RELEASE_TAG" "$GITHUB_SHA"
+        fi
+    - name: Package without publication
+      uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+      with:
+        version: ${{ inputs.goreleaser-version }}
+        workdir: ${{ inputs.working-directory }}
+        args: release --clean --skip=publish ${{ inputs.tag == '' && '--snapshot' || '' }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+    - id: artifact
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        DIRECTORY: ${{ inputs.working-directory }}
+        PATHS: ${{ inputs.artifact-paths }}
+        TAG: ${{ inputs.tag }}
+      with:
+        script: |
+          const path = require('node:path');
+          const files = process.env.PATHS.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+          if (!files.length) throw new Error('artifact-paths must contain at least one path.');
+          const root = path.resolve(process.env.GITHUB_WORKSPACE);
+          const directory = path.resolve(root, process.env.DIRECTORY);
+          const resolved = files.map(file => path.resolve(directory, file));
+          if (resolved.some(file => !file.startsWith(directory + path.sep))) {
+            throw new Error('artifact-paths must stay inside working-directory.');
+          }
+          core.setOutput('paths', resolved.join('\n'));
+          core.setOutput('name', `go-release-${process.env.TAG || 'snapshot'}-${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}-${require('node:crypto').randomUUID()}`);
+    - name: Retain packaged archives
+      id: upload
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ steps.artifact.outputs.name }}
+        path: ${{ steps.artifact.outputs.paths }}
+        if-no-files-found: error
+        compression-level: 0
+        retention-days: 7

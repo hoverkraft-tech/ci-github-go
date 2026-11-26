@@ -18,27 +18,3 @@ jobs:
           arguments: '["tests/release.test.cjs"]'
           coverage: ""
           comment: "false"
-  package:
-    uses: $/.github/workflows/build-release.yml
-    permissions:
-      contents: read
-    with:
-      working-directory: tests/go-project
-  verify:
-    needs: package
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - uses: hoverkraft-tech/ci-github-common/actions/download-artifact@af0bdd6313bd49aaf4a8a7f0de005fb0db856b03 # 4.3.3
-        with:
-          artifact-ids: ${{ needs.package.outputs.artifact-id }}
-          path: ${{ runner.temp }}/go-release-fixture
-      - name: Verify retained archives and checksums
-        shell: bash
-        working-directory: ${{ runner.temp }}/go-release-fixture
-        run: |
-          sha256sum --check checksums.txt
-          tar -xzf sample_*.tar.gz
-          test "$(./sample)" = 5

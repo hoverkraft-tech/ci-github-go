@@ -41,11 +41,12 @@ actions with GitHub reporting require only `contents: read`.
 | [test](actions/test/README.md)         | Run tests and retain native reports          |
 | [audit](actions/audit/README.md)       | Check dependency vulnerabilities             |
 | [build](actions/build/README.md)       | Compile packages or project binaries         |
+| [package](actions/package/README.md)   | Package validated binary archives            |
 
 ## Documentation
 
 - [Workflow reference](.github/workflows/continuous-integration.md)
-- [Build release archives](.github/workflows/build-release.md)
+- [Prepare package release](.github/workflows/prepare-package-release.md)
 - [Publish validated archives](.github/workflows/release.md)
 - [Contributing](CONTRIBUTING.md)
 - [Documentation index](docs/README.md)

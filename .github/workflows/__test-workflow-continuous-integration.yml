@@ -28,6 +28,7 @@ jobs:
       working-directory: tests/go-project
       go-versions: '["1.26", "1.27"]'
       dependency-review: false
+      package: "true"
   checks-disabled:
     uses: $/.github/workflows/continuous-integration.yml
     permissions:

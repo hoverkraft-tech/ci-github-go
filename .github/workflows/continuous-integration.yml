@@ -64,6 +64,12 @@
 # inside the checkout. Each invocation uses a unique artifact name.
 # Build output is not published as a release.
 #
+# Set `package: "true"` to produce GoReleaser snapshot archives after enabled checks.
+# For releases, pass `package: '{"tag":"v1.2.3"}'` using the tag from
+# [prepare-package-release](prepare-package-release.md). The immutable
+# `package-artifact-id` is passed unchanged to [release](release.md). Packaging uses
+# the primary Go version and the project GoReleaser configuration; it never publishes.
+#
 # ### Reports and permissions
 #
 # Tests retain JUnit and supported coverage files for seven days, including after
@@ -134,11 +140,18 @@ name: Go Continuous Integration
         description: true for go build, a trusted Bash command, or a JSON object with command and artifact (one project-relative directory). false, null or empty disables build.
         type: string
         default: "true"
+      package:
+        description: true for GoReleaser snapshot archives, or JSON with tag, goreleaser-version and artifact-paths. false, null or empty disables packaging. Runs after all enabled checks pass.
+        type: string
+        default: "false"
       golangci-lint-version:
         description: Pinned golangci-lint v2 release used by the lint action.
         type: string
         default: v2.15.0
     outputs:
+      package-artifact-id:
+        description: Immutable GoReleaser archive artifact ID, available only after successful packaging.
+        value: ${{ jobs.package.outputs.artifact-id }}
       build-artifact-id:
         description: Build artifact ID when build.artifact is configured.
         value: ${{ jobs.build.outputs.artifact-id }}
@@ -153,6 +166,7 @@ jobs:
       lint: ${{ steps.config.outputs.lint }}
       test: ${{ steps.config.outputs.test }}
       build: ${{ steps.config.outputs.build }}
+      package: ${{ steps.config.outputs.package }}
     steps:
       - id: config
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -161,6 +175,7 @@ jobs:
           LINT: ${{ inputs.lint }}
           TEST: ${{ inputs.test }}
           BUILD: ${{ inputs.build }}
+          PACKAGE: ${{ inputs.package }}
         with:
           script: |
             const versions = process.env.VERSIONS.trim() ? JSON.parse(process.env.VERSIONS) : [''];
@@ -194,6 +209,11 @@ jobs:
               throw new Error('build.artifact must be one directory inside working-directory.');
             }
             if (build && !build.command.trim()) throw new Error('build.command must not be empty.');
+            const packaging = options('package', process.env.PACKAGE, {
+              tag: '', 'goreleaser-version': '~> v2',
+              'artifact-paths': 'dist/*.tar.gz\ndist/*.zip\ndist/checksums.txt'
+            });
+            core.setOutput('package', JSON.stringify(packaging));
             core.setOutput('build', JSON.stringify(build));
             core.setOutput('versions', versions);
             core.setOutput('primary-version', versions.at(-1));
@@ -301,3 +321,28 @@ jobs:
           retention-days: 7
     outputs:
       artifact-id: ${{ steps.upload-build.outputs.artifact-id }}
+  package:
+    if: >-
+      !cancelled() && inputs.checks && needs.configuration.result == 'success' &&
+      needs.configuration.outputs.package != 'null' &&
+      !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    needs: [configuration, dependency-review, lint, test, audit, build]
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.package.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: package
+        uses: $/actions/package
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          go-version: ${{ needs.configuration.outputs.primary-version }}
+          tag: ${{ fromJSON(needs.configuration.outputs.package).tag }}
+          goreleaser-version: ${{ fromJSON(needs.configuration.outputs.package).goreleaser-version }}
+          artifact-paths: ${{ fromJSON(needs.configuration.outputs.package).artifact-paths }}

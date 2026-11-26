@@ -1,10 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const path = require("node:path");
-const { spawnSync, execFileSync } = require("node:child_process");
 const test = require("node:test");
 const YAML = require("yaml");
-const { createWorkspace } = require("./action-test-helpers.cjs");
 
 function step(workflow, job, id) {
   return YAML.parse(
@@ -69,90 +66,107 @@ test("release rejects mismatched artifacts and untrusted publication contexts", 
   );
 });
 
-test("packaging keeps existing tags intact and fails on a conflicting commit", (t) => {
-  const directory = createWorkspace(t);
-  const git = (...args) =>
-    execFileSync("git", args, {
-      cwd: directory,
-      encoding: "utf8",
-      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" },
-    }).trim();
-  git("init", "--quiet");
-  git(
-    "-c",
-    "user.name=Test",
-    "-c",
-    "user.email=test@example.com",
-    "-c",
-    "commit.gpgsign=false",
-    "commit",
-    "--allow-empty",
-    "-m",
-    "fixture",
+function preparation(id, args) {
+  return new AsyncFunction(
+    ...args,
+    step("prepare-package-release", "prepare", id).with.script,
   );
-  const sha = git("rev-parse", "HEAD");
-  const tag = (value, commit = sha) =>
-    spawnSync(
-      "bash",
-      ["-euo", "pipefail", "-c", step("build-release", "build", "tag").run],
-      {
-        cwd: directory,
-        encoding: "utf8",
-        timeout: 10000,
-        env: {
-          ...process.env,
-          GIT_CONFIG_GLOBAL: "/dev/null",
-          RELEASE_TAG: value,
-          GITHUB_SHA: commit,
-        },
-      },
+}
+
+test("preparation allows trusted default-branch runs and manual tag retries", async () => {
+  const event = preparation("event", ["context"]);
+  const payload = { repository: { default_branch: "main" } };
+  for (const [eventName, ref] of [
+    ["workflow_dispatch", "refs/heads/main"],
+    ["schedule", "refs/heads/main"],
+    ["workflow_dispatch", "refs/tags/v1.2.3"],
+  ])
+    await event({ eventName, ref, payload });
+  for (const [eventName, ref] of [
+    ["pull_request", "refs/heads/main"],
+    ["workflow_dispatch", "refs/heads/feature"],
+    ["schedule", "refs/tags/v1.2.3"],
+  ])
+    await assert.rejects(
+      () => event({ eventName, ref, payload }),
+      /Release preparation requires/,
     );
-  assert.equal(tag("").status, 0);
-  assert.equal(git("tag", "--list"), "");
-  for (let attempt = 0; attempt < 2; attempt++)
-    assert.equal(tag("v1.2.3").status, 0);
-  assert.equal(git("rev-parse", "v1.2.3"), sha);
-  assert.notEqual(tag("v1.2.3", "different").status, 0);
-  assert.equal(git("rev-parse", "v1.2.3"), sha);
-  assert.notEqual(tag("-invalid").status, 0);
 });
 
-test("artifact paths stay inside the project and names bind archives to tag and run", async () => {
-  const configure = new AsyncFunction(
-    "require",
-    "core",
-    "context",
-    "process",
-    step("build-release", "build", "artifact").with.script,
-  );
-  const outputs = {};
-  const run = (files) =>
-    configure(
-      require,
+test("preparation preserves the planned identity and recognizes tag recovery", async () => {
+  const identity = preparation("identity", ["context", "process", "core"]);
+  const run = async (ref, tag, changes) => {
+    const outputs = {};
+    await identity(
+      { ref },
+      { env: { TAG: tag, HAS_CHANGES: changes } },
       {
         setOutput: (key, value) => {
           outputs[key] = value;
         },
       },
-      context,
+    );
+    return outputs;
+  };
+  assert.deepEqual(await run("refs/heads/main", "v1.2.3", "false"), {
+    "has-changes": false,
+    tag: "v1.2.3",
+  });
+  assert.deepEqual(await run("refs/heads/main", "v1.2.3-rc.1", "true"), {
+    "has-changes": true,
+    tag: "v1.2.3-rc.1",
+  });
+  assert.deepEqual(await run("refs/tags/v1.2.3", "", ""), {
+    "has-changes": true,
+    tag: "v1.2.3",
+  });
+  await assert.rejects(
+    () => run("refs/tags/invalid", "", ""),
+    /semantic versions/,
+  );
+});
+
+test("preparation skips no-change and published releases without suppressing invalid verification", async () => {
+  const result = preparation("result", ["process", "core"]);
+  const run = async (changes, releases) => {
+    const outputs = {};
+    await result(
       {
         env: {
-          GITHUB_WORKSPACE: "/workspace",
-          DIRECTORY: "project",
-          PATHS: files,
+          HAS_CHANGES: changes,
           TAG: "v1.2.3",
-          GITHUB_RUN_ATTEMPT: "2",
+          RELEASES: JSON.stringify(releases),
         },
       },
+      {
+        setOutput: (key, value) => {
+          outputs[key] = value;
+        },
+        info() {},
+      },
     );
-  await run("dist/*.tar.gz\ndist/checksums.txt");
-  assert.equal(
-    outputs.paths,
-    ["dist/*.tar.gz", "dist/checksums.txt"]
-      .map((file) => path.join("/workspace/project", file))
-      .join("\n"),
-  );
-  assert.match(outputs.name, /^go-release-v1\.2\.3-42-2-/);
-  for (const value of ["", "../secret", "/etc/passwd"])
-    await assert.rejects(() => run(value));
+    return outputs;
+  };
+  assert.deepEqual(await run("false", undefined), {
+    status: "no-changes",
+    tag: "",
+  });
+  assert.deepEqual(await run("true", [{ tag: "v1.2.3", published: false }]), {
+    status: "ready",
+    tag: "v1.2.3",
+  });
+  assert.deepEqual(await run("true", [{ tag: "v1.2.3", published: true }]), {
+    status: "released",
+    tag: "",
+  });
+  for (const invalid of [
+    [],
+    [{ tag: "v1.2.4", published: false }],
+    [{ tag: "v1.2.3" }],
+  ]) {
+    await assert.rejects(
+      () => run("true", invalid),
+      /verified publication state/,
+    );
+  }
 });

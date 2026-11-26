@@ -89,12 +89,17 @@ and Renovate automation. Enable the CI bot only after repository settings and
 branch protection are configured. Release and generated-documentation writes
 are gated on the client ID. Public CI needs none of these credentials.
 
-The internal release automation versions this Actions repository. Public
-`build-release.yml` and `release.yml` package and publish consumer binaries through
-GoReleaser and the shared release action. Keep each consumer's platform targets and
-archive layout in its GoReleaser configuration. See the generated workflow references.
-The release workflow contract tests exercise tag collisions and artifact provenance;
-its dedicated CI fixture verifies a real GoReleaser archive transfer and checksum.
+The internal release automation versions this Actions repository. Consumer releases
+use `prepare-package-release.yml`, `continuous-integration.yml` with packaging enabled,
+and `release.yml`. Preparation returns `ready`, `no-changes` or `released`; only
+`ready` continues. The package action keeps platform targets and archive layout in
+the consumer's GoReleaser configuration. Publication consumes the validated artifact
+without rebuilding. See the generated workflow references.
+
+Contract tests cover preparation triggers, no-change and published-release gates,
+tag recovery, tag collisions and artifact provenance. The dedicated package action
+workflow verifies a real GoReleaser archive transfer, checksums and executable.
+The reusable CI fixture also exercises its optional packaging stage.
 
 ## Branding
 
