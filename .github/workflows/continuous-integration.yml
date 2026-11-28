@@ -11,15 +11,14 @@
 #     uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@main
 #     permissions:
 #       contents: read
-#       id-token: write
 #     with:
 #       working-directory: .
 #       go-versions: '["1.26", "1.27"]'
 # ```
 #
-# An empty versions input uses project detection once. The last matrix entry is
+# An empty versions input uses project detection once. The highest configured version is
 # the primary version: lint, audit and build checks run there, and only
-# that version publishes coverage. Tests run on every entry with fail-fast disabled.
+# that version contributes coverage. Tests run on every entry with fail-fast disabled.
 # Duplicate, malformed and non-string versions are rejected. `runs-on` is a JSON
 # array of Linux labels and applies to every job, including configuration.
 #
@@ -66,32 +65,20 @@
 #
 # ### Reports and permissions
 #
-# Tests retain JUnit and supported coverage files for seven days, including after
-# command failures. Lint retains parsed SARIF/Checkstyle reports. Only report files
-# are uploaded, with unique names for parallel calls; a job producing no reports
-# returns an empty `report-artifact-id`. Summaries and annotations work without PR
-# write permissions. Individual PR comments are not created.
+# Every runtime retains validated JUnit test results. Lint and coverage run once
+# on the highest configured version; the default command disables instrumentation
+# on other versions. Custom commands receive CI_REPORTS_DIR and CI_TEST_COVERAGE.
+# Go coverage remains a native profile with its statement-weighted measurement.
+# Line-oriented publication formats are prepared only for selected destinations.
 #
-# Use the common
-# [ci-reports workflow](https://github.com/hoverkraft-tech/ci-github-common/blob/main/.github/workflows/ci-reports.yml)
-# for consolidated comments after standalone producer jobs; set `report-group` to
-# the outer calling job ID when required. Go coverage uses native `go tool cover` summaries and retains
-# `coverage.out` in separate `go-coverage-*` artifacts; the common parser handles
-# JUnit, not native Go coverage. Coverage details remain in each test job summary.
+# Call common ci-reports.yml once after all jobs with job-results: toJSON(needs).
+# No report plans or artifact IDs need forwarding. Producer calls require actions:
+# read and contents: read. The reporting caller grants actions: read, contents: read,
+# pull-requests: write, code-quality: write, id-token: write and security-events: write.
+# Lint and tests default to annotations; coverage uses GitHub when available and
+# a comment or summary otherwise. Select destinations once using lint-reporters,
+# test-results-reporters and test-coverage-reporters.
 #
-# `test: '{"coverage":"codecov"}'` enables OIDC upload. The expected coverage file is
-# `coverage.out`. A custom command must produce
-# the applicable file. `coverage` controls publication, not collection, and an
-# empty value still retains JUnit results. The reusable workflow declares
-# `id-token: write` for Codecov and callers must grant it, including for default
-# GitHub reports. Standalone GitHub reporting requires only read permissions.
-# No repository-specific bot secrets are required by the public actions or workflow.
-#
-# See [setup-go](../../actions/setup-go/README.md), [lint](../../actions/lint/README.md),
-# [test](../../actions/test/README.md) and [audit](../../actions/audit/README.md)
-# for standalone action usage. Pin the workflow to a reviewed commit SHA in production.
-
----
 name: Go Continuous Integration
 "on":
   workflow_call:
@@ -109,15 +96,15 @@ name: Go Continuous Integration
         type: string
         default: .
       go-versions:
-        description: JSON array of Go versions. The last entry runs lint, audit and build and publishes coverage. Empty runs project detection once. An empty entry uses the project version.
+        description: JSON array of Go versions. Every version retains test results; the highest configured version runs lint, audit, build and coverage. Empty uses project detection once.
         type: string
         default: ""
       lint:
-        description: true for default checks, a trusted Bash command, or a JSON object with command. false, null or empty disables lint.
+        description: true for defaults, a Bash command or JSON options (command, lint-results). false, null or empty disables lint.
         type: string
         default: "true"
       test:
-        description: true for default tests, a trusted Bash command, or a JSON object with command, coverage (`github`, `codecov` or empty), and race (boolean). false, null or empty disables tests. Coverage publication runs only on the last version; the command controls collection.
+        description: "true for defaults, a Bash command or JSON options (command, race, coverage, test-results, test-coverage). Paths are relative to CI_REPORTS_DIR. false, null or empty disables tests."
         type: string
         default: "true"
       audit:
@@ -159,6 +146,8 @@ jobs:
           LINT: ${{ inputs.lint }}
           TEST: ${{ inputs.test }}
           BUILD: ${{ inputs.build }}
+          DIRECTORY: ${{ inputs.working-directory }}
+          CHECKS: ${{ inputs.checks }}
         with:
           script: |
             const versions = process.env.VERSIONS.trim() ? JSON.parse(process.env.VERSIONS) : [''];
@@ -179,13 +168,12 @@ jobs:
               if (unknown.length) throw new Error('Unknown ' + name + ' options: ' + unknown.join(', '));
               config = {...defaults, ...config};
               for (const [key, value] of Object.entries(config)) {
-                if (typeof value !== typeof defaults[key]) throw new Error(name + '.' + key + ' has the wrong type.');
+                if (Array.isArray(defaults[key]) ? !Array.isArray(value) : typeof value !== typeof defaults[key]) throw new Error(name + '.' + key + ' has the wrong type.');
               }
               return config;
             }
-            const lint = options('lint', process.env.LINT, {command: ''});
-            const test = options('test', process.env.TEST, {"command": "", "coverage": "github", "race": true});
-            if (test && !['', 'github', 'codecov'].includes(test.coverage)) throw new Error('test.coverage must be github, codecov or empty.');
+            const lint = options('lint', process.env.LINT, {command: '', 'lint-results':'golangci-lint.sarif'});
+            const test = options('test', process.env.TEST, {command:'', coverage:true, race:true, 'test-results':'junit.xml', 'test-coverage':'coverage.out'});
             const build = options('build', process.env.BUILD, {command: 'go build -mod=readonly -trimpath ./...', artifact: ''});
             const artifact = build?.artifact;
             if (artifact && (artifact === '.' || artifact.startsWith('/') || artifact.includes('\\') || artifact.split('/').includes('..') || /[\r\n*?]/.test(artifact))) {
@@ -194,7 +182,16 @@ jobs:
             if (build && !build.command.trim()) throw new Error('build.command must not be empty.');
             core.setOutput('build', JSON.stringify(build));
             core.setOutput('versions', versions);
-            core.setOutput('primary-version', versions.at(-1));
+            if (versions.length > 1 && versions.includes('')) throw new Error('Project detection cannot be mixed with explicit versions.');
+            const primary = [...versions].sort((a, b) => {
+              const left = a.split('.').map(Number); const right = b.split('.').map(Number);
+              for (let index = 0; index < 3; index++) {
+                const difference = (left[index] || 0) - (right[index] || 0);
+                if (difference) return difference;
+              }
+              return 0;
+            }).at(-1);
+            core.setOutput('primary-version', primary);
             core.setOutput('lint', JSON.stringify(lint));
             core.setOutput('test', JSON.stringify(test));
   dependency-review:
@@ -207,6 +204,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
   lint:
     if: inputs.checks && needs.configuration.outputs.lint != 'null'
@@ -215,6 +213,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: read
     steps:
       - *checkout
       - &setup-primary
@@ -227,6 +226,7 @@ jobs:
           working-directory: ${{ inputs.working-directory }}
           command: ${{ fromJSON(needs.configuration.outputs.lint).command }}
           golangci-lint-version: ${{ inputs.golangci-lint-version }}
+          lint-results: ${{ fromJSON(needs.configuration.outputs.lint).lint-results }}
   test:
     if: inputs.checks && needs.configuration.outputs.test != 'null'
     needs: configuration
@@ -234,9 +234,12 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-      id-token: write
+      actions: read
     steps:
-      - *checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: $/actions/setup-go
         with:
           working-directory: ${{ inputs.working-directory }}
@@ -245,8 +248,10 @@ jobs:
         with:
           working-directory: ${{ inputs.working-directory }}
           command: ${{ fromJSON(needs.configuration.outputs.test).command }}
-          coverage: ${{ matrix.version == needs.configuration.outputs.primary-version && fromJSON(needs.configuration.outputs.test).coverage || '' }}
+          coverage: ${{ matrix.version == needs.configuration.outputs.primary-version && fromJSON(needs.configuration.outputs.test).coverage && 'true' || 'false' }}
           race: ${{ fromJSON(needs.configuration.outputs.test).race }}
+          test-results: ${{ fromJSON(needs.configuration.outputs.test).test-results }}
+          test-coverage: ${{ fromJSON(needs.configuration.outputs.test).test-coverage }}
     strategy:
       fail-fast: false
       matrix:

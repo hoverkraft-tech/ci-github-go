@@ -31,16 +31,17 @@ async function parse(env = {}) {
   return outputs;
 }
 
-test("uses project detection by default and the last explicit version as primary", async () => {
+test("uses project detection by default and the highest explicit version as primary", async () => {
   const automatic = await parse();
   assert.deepEqual(automatic.versions, [""]);
   assert.equal(automatic["primary-version"], "");
-  const explicit = await parse({ VERSIONS: '["1.26", "1.27"]' });
-  assert.equal(explicit["primary-version"], explicit.versions.at(-1));
+  const explicit = await parse({ VERSIONS: '["1.27", "1.26"]' });
+  assert.equal(explicit["primary-version"], "1.27");
 });
 
 test("rejects ambiguous or unbounded version matrices", async () => {
   for (const value of [
+    '["", "1.27"]',
     "[]",
     '["1.2", "1.2"]',
     "[1.2]",
@@ -61,17 +62,17 @@ test("disables checks and preserves explicitly supplied command bytes", async ()
   }
   const command = 'printf "%s\n" "$VALUE"\nexit 17';
   const result = await parse({
-    TEST: JSON.stringify({ command, coverage: "" }),
+    TEST: JSON.stringify({ command, coverage: false }),
   });
   assert.equal(JSON.parse(result.test).command, command);
-  assert.equal(JSON.parse(result.test).coverage, "");
+  assert.equal(JSON.parse(result.test).coverage, false);
   assert.equal(
     JSON.parse((await parse({ LINT: "make lint" })).lint).command,
     "make lint",
   );
 });
 
-test("rejects misspelled options, invalid types and unknown coverage providers", async () => {
+test("rejects misspelled options, invalid types and non-boolean coverage options", async () => {
   for (const key of ["LINT", "TEST"]) {
     for (const value of [
       "{",
@@ -87,7 +88,7 @@ test("rejects misspelled options, invalid types and unknown coverage providers",
       );
     }
   }
-  for (const coverage of ["unknown", false, null]) {
+  for (const coverage of ["unknown", "false", null]) {
     await assert.rejects(() => parse({ TEST: JSON.stringify({ coverage }) }));
   }
 });
@@ -114,4 +115,18 @@ test("rejects unsafe build artifact directories and empty commands", async () =>
     JSON.parse((await parse({ TEST: '{"race":false}' })).test).race,
     false,
   );
+});
+
+test("preserves native report paths and rejects ambiguous input types", async () => {
+  const options = {
+    coverage: true,
+    "test-coverage": "coverage.out",
+    "test-results": "junit.xml",
+  };
+  const actual = JSON.parse(
+    (await parse({ TEST: JSON.stringify(options) })).test,
+  );
+  for (const [key, value] of Object.entries(options))
+    assert.deepEqual(actual[key], value);
+  await assert.rejects(() => parse({ TEST: '{"test-coverage":{}}' }));
 });

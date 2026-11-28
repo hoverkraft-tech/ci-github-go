@@ -1,36 +1,16 @@
 ---
 name: Test Go
 description: |
-  Run Go tests with gotestsum, JUnit output and atomic coverage.
+  Run Go tests with detailed JUnit results on every runtime and optional native coverage.
 
-  Defaults enable `-race`, `-count=1` and a five-minute package timeout.
-  The race detector requires CGO and a C compiler on a supported Linux runner;
-  set `race: "false"` when unavailable. A trusted Bash `command` replaces defaults
-  and must produce JUnit for test reporting and `coverage.out` for coverage.
-  GitHub coverage uses native `go tool cover` summaries and retains `coverage.out`;
-  the common report parser handles JUnit, not the native Go coverage format.
-  Native coverage is retained in a separate `go-coverage-*` artifact, so consolidated
-  CI reports receive only supported files. Coverage details remain in the test job summary.
+  Run setup-go first. Defaults write junit.xml and coverage.out into a fresh
+  CI_REPORTS_DIR. Coverage instrumentation is disabled when coverage is false.
+  Custom commands receive CI_REPORTS_DIR and CI_TEST_COVERAGE.
 
-  <!-- jscpd:ignore-start -->
-  <!-- Shared setup and reporting guidance for standalone actions. -->
-
-  Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
-
-  <!-- jscpd:ignore-end -->
-
-  `coverage: "github"` is the default. Set `coverage: "codecov"` and grant the
-  job `id-token: write` for OIDC upload of `coverage.out`. An empty coverage
-  value disables publication while retaining JUnit; collection is controlled by
-  the command. Custom commands must produce the applicable report files.
-
-  <!-- jscpd:ignore-start -->
-  <!-- Shared setup and reporting guidance for standalone actions. -->
-
-  Native reports survive command failures and are retained for seven days.
-  See the [continuous integration workflow](../../.github/workflows/continuous-integration.md#reports-and-permissions) for consolidated reporting and permissions.
-
-  <!-- jscpd:ignore-end -->
+  Required outputs are registered before execution and validated after success or
+  failure. The Go profile retains native statement counts. Select publication once
+  in common ci-reports after all jobs; no report outputs need forwarding.
+  Producer jobs require actions: read and contents: read.
 author: hoverkraft
 branding:
   icon: package
@@ -40,24 +20,24 @@ inputs:
     description: Go module directory.
     default: .
   command:
-    description: Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.
+    description: Trusted Bash replacement for the default checks. Write declared native reports under CI_REPORTS_DIR; test commands must honor CI_TEST_COVERAGE.
     default: ""
   race:
     description: Enable the race detector for the default command. Requires CGO and a C compiler.
     default: "true"
   coverage:
-    description: "Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command."
-    default: github
-  report-group:
-    description: Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.
-    default: ""
+    description: Collect native Go coverage. The default command disables instrumentation when false.
+    default: "true"
+  test-results:
+    description: Required native report paths relative to CI_REPORTS_DIR, one per line.
+    default: junit.xml
+  test-coverage:
+    description: Required native Go coverage profile paths relative to CI_REPORTS_DIR when coverage is enabled.
+    default: coverage.out
 outputs:
   report-artifact-id:
-    description: Native report artifact ID. Empty when no reports were produced.
-    value: ${{ steps.report-artifact.outputs.artifact-id }}
-  coverage-artifact-id:
-    description: Native coverage.out artifact ID for GitHub coverage, or empty when unavailable.
-    value: ${{ steps.report-artifact.outputs.coverage-artifact-id }}
+    description: Native report bundle, including available diagnostics after failures.
+    value: ${{ steps.reports.outputs.artifact-id }}
 runs:
   using: composite
   steps:
@@ -72,7 +52,35 @@ runs:
         COVERAGE: ${{ inputs.coverage }}
       run: |
         case "$RACE" in true|false) ;; *) echo 'race must be true or false.' >&2; exit 1 ;; esac
-        case "$COVERAGE" in github|codecov|'') ;; *) echo 'coverage must be github, codecov or empty.' >&2; exit 1 ;; esac
+        case "$COVERAGE" in true|false) ;; *) echo 'coverage must be true or false.' >&2; exit 1 ;; esac
+    - id: definition
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        DIRECTORY: ${{ steps.directory.outputs.workspace-relative-path || '.' }}
+        WORKING_DIRECTORY: ${{ steps.directory.outputs.absolute-path }}
+        GOTOOLCHAIN: local
+        GOWORK: off
+        RESULTS: ${{ inputs.test-results }}
+        COVERAGE: ${{ inputs.coverage }}
+        COVERAGE_PATHS: ${{ inputs.test-coverage }}
+      with:
+        script: |
+          const paths = value => {
+            const result = value.split(/\r?\n/).map(item => item.trim()).filter(Boolean);
+            if (!result.length) throw new Error('Required report paths must not be empty.');
+            return result;
+          };
+          const reports = paths(process.env.RESULTS).map(pattern => ({kind: 'test', pattern}));
+          if (process.env.COVERAGE === 'true') reports.push(...paths(process.env.COVERAGE_PATHS).map(pattern => ({kind:'coverage',pattern,language:'Go'})));
+          const options = {cwd:process.env.WORKING_DIRECTORY,silent:true};
+          const runtime = await exec.getExecOutput('go', ['env','GOVERSION'], options);
+          const modulePath = await exec.getExecOutput('go', ['list','-m','-f','{{.Path}}'], options);
+          core.setOutput('definition', {name:'Go tests',project:process.env.DIRECTORY,variant:{runtime:runtime.stdout.trim()},reports,'path-mapping':{[modulePath.stdout.trim()]:process.env.DIRECTORY}});
+    - id: prepare
+      uses: hoverkraft-tech/ci-github-common/actions/quality/record-ci-reports@57ec4a8bf0ab9ea52beea725b5e59895ed39f4f2 # PR #683 (unreleased)
+      with:
+        operation: prepare
+        definition: ${{ steps.definition.outputs.definition }}
     - id: run
       shell: bash
       working-directory: ${{ steps.directory.outputs.absolute-path }}
@@ -83,6 +91,8 @@ runs:
         GOTOOLCHAIN: local
         GOWORK: "off"
         CI: "true"
+        CI_REPORTS_DIR: ${{ steps.prepare.outputs.report-directory }}
+        CI_TEST_COVERAGE: ${{ inputs.coverage }}
       run: |
         if [ -n "$COMMAND" ] && ! [[ "$COMMAND" =~ [^[:space:]] ]]; then
           echo "command must not contain only whitespace." >&2
@@ -92,36 +102,15 @@ runs:
           bash --noprofile --norc -e -u -o pipefail -c "$COMMAND"
           exit
         fi
-        args=(-mod=readonly -count=1 -timeout=5m -covermode=atomic -coverprofile=coverage.out)
+        args=(-mod=readonly -count=1 -timeout=5m)
+        if [ "$CI_TEST_COVERAGE" = true ]; then args+=(-covermode=atomic "-coverprofile=$CI_REPORTS_DIR/coverage.out"); fi
         if [ "$RACE" = true ]; then args+=(-race); fi
-        go run "gotest.tools/gotestsum@$GOTESTSUM_VERSION" --junitfile=junit.xml --format=testname -- "${args[@]}" ./...
-    - name: Report test results
-      id: report-artifact
-      if: ${{ !cancelled() && steps.run.outcome != 'skipped' }}
-      uses: $/.github/actions/parse-ci-reports
+        go run "gotest.tools/gotestsum@$GOTESTSUM_VERSION" --junitfile="$CI_REPORTS_DIR/junit.xml" --format=testname -- "${args[@]}" ./...
+    - name: Validate and retain native reports
+      id: reports
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+      uses: hoverkraft-tech/ci-github-common/actions/quality/record-ci-reports@57ec4a8bf0ab9ea52beea725b5e59895ed39f4f2 # unified reports (PR #683, unreleased)
       with:
-        directory: ${{ steps.directory.outputs.absolute-path }}
-        report-paths: auto:test
-        report-name: Go test results
-        group: ${{ inputs.report-group || github.job }}
-        native-coverage: ${{ inputs.coverage == 'github' }}
-    - id: go-coverage
-      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && inputs.coverage == 'github' }}
-      env:
-        DIRECTORY: ${{ steps.directory.outputs.absolute-path }}
-      with:
-        script: |
-          const fs = require('node:fs');
-          const path = require('node:path');
-          const file = path.join(process.env.DIRECTORY, 'coverage.out');
-          if (!fs.existsSync(file)) return;
-          const result = await exec.getExecOutput('go', ['tool', 'cover', '-func=' + file], {cwd: process.env.DIRECTORY});
-          await core.summary.addHeading('Go coverage').addCodeBlock(result.stdout, 'text').write();
-    - name: Upload coverage to Codecov
-      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && inputs.coverage == 'codecov' }}
-      uses: hoverkraft-tech/ci-github-common/actions/quality/codecov@d606f77fad305ef07dfde3db5270f5e324019c97 # 4.2.4
-      with:
-        working-directory: ${{ steps.directory.outputs.absolute-path }}
-        files: coverage.out
-        fail-ci-if-error: "true"
+        operation: finalize
+        recording: ${{ steps.prepare.outputs.recording }}
+        outcome: ${{ steps.run.outcome }}

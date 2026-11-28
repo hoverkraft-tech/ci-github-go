@@ -2,12 +2,6 @@
 
 # ![Icon](data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJmZWF0aGVyIGZlYXRoZXItcGFja2FnZSIgY29sb3I9ImJsdWUiPjxsaW5lIHgxPSIxNi41IiB5MT0iOS40IiB4Mj0iNy41IiB5Mj0iNC4yMSI+PC9saW5lPjxwYXRoIGQ9Ik0yMSAxNlY4YTIgMiAwIDAgMC0xLTEuNzNsLTctNGEyIDIgMCAwIDAtMiAwbC03IDRBMiAyIDAgMCAwIDMgOHY4YTIgMiAwIDAgMCAxIDEuNzNsNyA0YTIgMiAwIDAgMCAyIDBsNy00QTIgMiAwIDAgMCAyMSAxNnoiPjwvcGF0aD48cG9seWxpbmUgcG9pbnRzPSIzLjI3IDYuOTYgMTIgMTIuMDEgMjAuNzMgNi45NiI+PC9wb2x5bGluZT48bGluZSB4MT0iMTIiIHkxPSIyMi4wOCIgeDI9IjEyIiB5Mj0iMTIiPjwvbGluZT48L3N2Zz4=) GitHub Action: Test Go
 
-<div align="center">
-  <img src="../../.github/logo.svg" width="60px" align="center" alt="Test Go" />
-</div>
-
----
-
 <!-- header:end -->
 
 <!-- jscpd:ignore-start -->
@@ -29,36 +23,16 @@
 
 ## Overview
 
-Run Go tests with gotestsum, JUnit output and atomic coverage.
+Run Go tests with detailed JUnit results on every runtime and optional native coverage.
 
-Defaults enable `-race`, `-count=1` and a five-minute package timeout.
-The race detector requires CGO and a C compiler on a supported Linux runner;
-set `race: "false"` when unavailable. A trusted Bash `command` replaces defaults
-and must produce JUnit for test reporting and `coverage.out` for coverage.
-GitHub coverage uses native `go tool cover` summaries and retains `coverage.out`;
-the common report parser handles JUnit, not the native Go coverage format.
-Native coverage is retained in a separate `go-coverage-*` artifact, so consolidated
-CI reports receive only supported files. Coverage details remain in the test job summary.
+Run setup-go first. Defaults write junit.xml and coverage.out into a fresh
+CI_REPORTS_DIR. Coverage instrumentation is disabled when coverage is false.
+Custom commands receive CI_REPORTS_DIR and CI_TEST_COVERAGE.
 
-<!-- jscpd:ignore-start -->
-<!-- Shared setup and reporting guidance for standalone actions. -->
-
-Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
-
-<!-- jscpd:ignore-end -->
-
-`coverage: "github"` is the default. Set `coverage: "codecov"` and grant the
-job `id-token: write` for OIDC upload of `coverage.out`. An empty coverage
-value disables publication while retaining JUnit; collection is controlled by
-the command. Custom commands must produce the applicable report files.
-
-<!-- jscpd:ignore-start -->
-<!-- Shared setup and reporting guidance for standalone actions. -->
-
-Native reports survive command failures and are retained for seven days.
-See the [continuous integration workflow](../../.github/workflows/continuous-integration.md#reports-and-permissions) for consolidated reporting and permissions.
-
-<!-- jscpd:ignore-end -->
+Required outputs are registered before execution and validated after success or
+failure. The Go profile retains native statement counts. Select publication once
+in common ci-reports after all jobs; no report outputs need forwarding.
+Producer jobs require actions: read and contents: read.
 
 <!-- overview:end -->
 
@@ -70,25 +44,30 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@3a72b809f7253a916ee2f4bcee59a66bbba131d3 # main
+- uses: hoverkraft-tech/ci-github-go/actions/test@b529d39b7c3b358eb6f3ed52fadd5b6ae5438ece # feat/native-github-coverage
   with:
     # Go module directory.
     # Default: `.`
     working-directory: .
 
-    # Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.
+    # Trusted Bash replacement for the default checks. Write declared native reports under CI_REPORTS_DIR; test commands must honor CI_TEST_COVERAGE.
     command: ""
 
     # Enable the race detector for the default command. Requires CGO and a C compiler.
     # Default: `true`
     race: "true"
 
-    # Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command.
-    # Default: `github`
-    coverage: github
+    # Collect native Go coverage. The default command disables instrumentation when false.
+    # Default: `true`
+    coverage: "true"
 
-    # Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.
-    report-group: ""
+    # Required native report paths relative to CI_REPORTS_DIR, one per line.
+    # Default: `junit.xml`
+    test-results: junit.xml
+
+    # Required native Go coverage profile paths relative to CI_REPORTS_DIR when coverage is enabled.
+    # Default: `coverage.out`
+    test-coverage: coverage.out
 ```
 
 <!-- usage:end -->
@@ -97,13 +76,14 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Inputs
 
-| **Input**               | **Description**                                                                                                               | **Required** | **Default** |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
-| **`working-directory`** | Go module directory.                                                                                                          | **false**    | `.`         |
-| **`command`**           | Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.                   | **false**    | -           |
-| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                              | **false**    | `true`      |
-| **`coverage`**          | Publication only: `github` (native go tool cover summary), `codecov`, or empty. Collection is controlled by the test command. | **false**    | `github`    |
-| **`report-group`**      | Outer calling job ID for consolidated ci-reports. Defaults to the current job ID. No individual PR comments are posted.       | **false**    | -           |
+| **Input**               | **Description**                                                                                                                                 | **Required** | **Default**    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | -------------- |
+| **`working-directory`** | Go module directory.                                                                                                                            | **false**    | `.`            |
+| **`command`**           | Trusted Bash replacement for the default checks. Write declared native reports under CI_REPORTS_DIR; test commands must honor CI_TEST_COVERAGE. | **false**    | -              |
+| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                                                | **false**    | `true`         |
+| **`coverage`**          | Collect native Go coverage. The default command disables instrumentation when false.                                                            | **false**    | `true`         |
+| **`test-results`**      | Required native report paths relative to CI_REPORTS_DIR, one per line.                                                                          | **false**    | `junit.xml`    |
+| **`test-coverage`**     | Required native Go coverage profile paths relative to CI_REPORTS_DIR when coverage is enabled.                                                  | **false**    | `coverage.out` |
 
 <!-- inputs:end -->
 
@@ -114,10 +94,9 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Outputs
 
-| **Output**                 | **Description**                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------- |
-| **`report-artifact-id`**   | Native report artifact ID. Empty when no reports were produced.                 |
-| **`coverage-artifact-id`** | Native coverage.out artifact ID for GitHub coverage, or empty when unavailable. |
+| **Output**               | **Description**                                                       |
+| ------------------------ | --------------------------------------------------------------------- |
+| **`report-artifact-id`** | Native report bundle, including available diagnostics after failures. |
 
 <!-- outputs:end -->
 
