@@ -40,7 +40,7 @@ jobs:
       go-versions: '["1.26", "1.27"]'
 ```
 
-An empty versions input uses project detection once. The last matrix entry is
+An empty versions input uses project detection once. The highest configured version is
 the primary version: lint, audit and build checks run there, and only
 that version contributes coverage. Tests run on every entry with fail-fast disabled.
 Duplicate, malformed and non-string versions are rejected. `runs-on` is a JSON
@@ -87,54 +87,25 @@ with:
 inside the checkout. Each invocation uses a unique artifact name.
 Build output is not published as a release.
 
-### Reports and coverage
+### Reports and permissions
 
-Lint and test jobs retain native diagnostics in one artifact per execution.
-They post no PR comments and need no publication permissions. Configure native
-test reports (JUnit or TAP) and lint reports (for example Checkstyle or SARIF).
-Missing required reports fail even when the tool command exits successfully.
-Available reports are retained after failures.
+Every runtime retains validated JUnit test results. Lint and coverage run once
+on the highest configured version; the default command disables instrumentation
+on other versions. Custom commands receive CI_REPORTS_DIR and CI_TEST_COVERAGE.
+Go coverage remains a native profile with its statement-weighted measurement.
+Line-oriented publication formats are prepared only for selected destinations.
 
-Tests require Cobertura by default. The highest configured runtime contributes
-coverage; every runtime retains its test results. Set `test: '{"coverage":false}'`
-for tests that deliberately produce no Cobertura. The command still controls
-instrumentation. Custom `test.coverage-reports` describes Cobertura file paths,
-Linguist languages and stable component labels; it belongs beside the producer.
-Separate components stay separate. Merge shards in the framework first.
-
-Call the common workflow once after producer workflows. It reads their complete
-report plans from `needs`, regardless of calling job names:
-
-```yaml
-reports:
-  needs: [checks]
-  if: ${{ always() }}
-  uses: hoverkraft-tech/ci-github-common/.github/workflows/ci-reports.yml@<commit-sha>
-  permissions:
-    contents: read
-    pull-requests: write
-    code-quality: write
-    id-token: write
-  with:
-    job-results: ${{ toJSON(needs) }}
-    coverage: github
-```
-
-Select `coverage: none` (default) for summaries, `github` for native GitHub
-coverage, or `codecov`. Both publishers consume validated Cobertura. Native
-GitHub coverage requires repository enablement and a default-branch baseline.
-The reporting workflow owns one CI comment and the `CI reports complete` check.
-Forks retain diagnostics without write operations. Partial reruns require
-rerunning all producers. Producer workflows test the PR head or push revision.
-
-Standalone action jobs forward their `report-plan` output. Custom outer matrices
-must forward a complete plan derived from their configuration; GitHub's last
-successful matrix output does not describe all executions. See the common
-[recording action](https://github.com/hoverkraft-tech/ci-github-common/tree/main/actions/quality/record-ci-reports)
-for the advanced contract. No collector-side coverage inventory is needed.
+Call common ci-reports.yml once after all jobs with job-results: toJSON(needs).
+No report plans or artifact IDs need forwarding. Producer calls require actions:
+read and contents: read. The reporting caller grants actions: read, contents: read,
+pull-requests: write, code-quality: write, id-token: write and security-events: write.
+Lint and tests default to annotations; coverage uses GitHub when available and
+a comment or summary otherwise. Select destinations once using lint-reporters,
+test-results-reporters and test-coverage-reporters.
 
 ### Permissions
 
+- **`actions`**: `read`
 - **`contents`**: `read`
 
 <!-- overview:end -->
@@ -155,8 +126,9 @@ on:
 permissions: {}
 jobs:
   continuous-integration:
-    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@0814116d658bad2bf0f56c9e61b492a46b43dd88 # feat/native-github-coverage
+    uses: hoverkraft-tech/ci-github-go/.github/workflows/continuous-integration.yml@b529d39b7c3b358eb6f3ed52fadd5b6ae5438ece # feat/native-github-coverage
     permissions:
+      actions: read
       contents: read
     with:
       # JSON array of Linux runner labels for all jobs.
@@ -171,14 +143,14 @@ jobs:
       # Default: `.`
       working-directory: .
 
-      # JSON array of Go versions. The last entry runs lint, audit and build and contributes coverage. Empty runs project detection once. An empty entry uses the project version.
+      # JSON array of Go versions. Every version retains test results; the highest configured version runs lint, audit, build and coverage. Empty uses project detection once.
       go-versions: ""
 
-      # true for default checks, a trusted Bash command, or a JSON object with command. false, null or empty disables lint.
+      # true for defaults, a Bash command or JSON options (command, lint-results). false, null or empty disables lint.
       # Default: `true`
       lint: "true"
 
-      # true for defaults, a Bash command, or JSON options (command, coverage, coverage-reports, race). false, null or empty disables tests. Coverage is collected once, on the primary runtime.
+      # true for defaults, a Bash command or JSON options (command, race, coverage, test-results, test-coverage). Paths are relative to CI_REPORTS_DIR. false, null or empty disables tests.
       # Default: `true`
       test: "true"
 
@@ -197,9 +169,6 @@ jobs:
       # Pinned golangci-lint v2 release used by the lint action.
       # Default: `v2.15.0`
       golangci-lint-version: v2.15.0
-
-      # Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.
-      report-plan: ""
 ```
 
 <!-- usage:end -->
@@ -210,19 +179,18 @@ jobs:
 
 ### Workflow Call Inputs
 
-| **Input**                   | **Description**                                                                                                                                                                          | **Required** | **Type**    | **Default**         |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- | ------------------- |
-| **`runs-on`**               | JSON array of Linux runner labels for all jobs.                                                                                                                                          | **false**    | **string**  | `["ubuntu-latest"]` |
-| **`checks`**                | Enable all checks, including build.                                                                                                                                                      | **false**    | **boolean** | `true`              |
-| **`working-directory`**     | One project directory inside the checkout. Use a caller matrix for multiple projects.                                                                                                    | **false**    | **string**  | `.`                 |
-| **`go-versions`**           | JSON array of Go versions. The last entry runs lint, audit and build and contributes coverage. Empty runs project detection once. An empty entry uses the project version.               | **false**    | **string**  | -                   |
-| **`lint`**                  | true for default checks, a trusted Bash command, or a JSON object with command. false, null or empty disables lint.                                                                      | **false**    | **string**  | `true`              |
-| **`test`**                  | true for defaults, a Bash command, or JSON options (command, coverage, coverage-reports, race). false, null or empty disables tests. Coverage is collected once, on the primary runtime. | **false**    | **string**  | `true`              |
-| **`audit`**                 | Check production dependencies for known vulnerabilities.                                                                                                                                 | **false**    | **boolean** | `true`              |
-| **`dependency-review`**     | Review dependency changes on pull requests. Requires GitHub dependency review availability.                                                                                              | **false**    | **boolean** | `true`              |
-| **`build`**                 | true for go build, a trusted Bash command, or a JSON object with command and artifact (one project-relative directory). false, null or empty disables build.                             | **false**    | **string**  | `true`              |
-| **`golangci-lint-version`** | Pinned golangci-lint v2 release used by the lint action.                                                                                                                                 | **false**    | **string**  | `v2.15.0`           |
-| **`report-plan`**           | Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.                                                                                      | **false**    | **string**  | -                   |
+| **Input**                   | **Description**                                                                                                                                                                      | **Required** | **Type**    | **Default**         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ | ----------- | ------------------- |
+| **`runs-on`**               | JSON array of Linux runner labels for all jobs.                                                                                                                                      | **false**    | **string**  | `["ubuntu-latest"]` |
+| **`checks`**                | Enable all checks, including build.                                                                                                                                                  | **false**    | **boolean** | `true`              |
+| **`working-directory`**     | One project directory inside the checkout. Use a caller matrix for multiple projects.                                                                                                | **false**    | **string**  | `.`                 |
+| **`go-versions`**           | JSON array of Go versions. Every version retains test results; the highest configured version runs lint, audit, build and coverage. Empty uses project detection once.               | **false**    | **string**  | -                   |
+| **`lint`**                  | true for defaults, a Bash command or JSON options (command, lint-results). false, null or empty disables lint.                                                                       | **false**    | **string**  | `true`              |
+| **`test`**                  | true for defaults, a Bash command or JSON options (command, race, coverage, test-results, test-coverage). Paths are relative to CI_REPORTS_DIR. false, null or empty disables tests. | **false**    | **string**  | `true`              |
+| **`audit`**                 | Check production dependencies for known vulnerabilities.                                                                                                                             | **false**    | **boolean** | `true`              |
+| **`dependency-review`**     | Review dependency changes on pull requests. Requires GitHub dependency review availability.                                                                                          | **false**    | **boolean** | `true`              |
+| **`build`**                 | true for go build, a trusted Bash command, or a JSON object with command and artifact (one project-relative directory). false, null or empty disables build.                         | **false**    | **string**  | `true`              |
+| **`golangci-lint-version`** | Pinned golangci-lint v2 release used by the lint action.                                                                                                                             | **false**    | **string**  | `v2.15.0`           |
 
 <!-- inputs:end -->
 
@@ -233,10 +201,9 @@ jobs:
 
 ## Outputs
 
-| **Output**              | **Description**                                                      |
-| ----------------------- | -------------------------------------------------------------------- |
-| **`build-artifact-id`** | Build artifact ID when build.artifact is configured.                 |
-| **`report-plan`**       | Complete expected report plan, consumed automatically by ci-reports. |
+| **Output**              | **Description**                                      |
+| ----------------------- | ---------------------------------------------------- |
+| **`build-artifact-id`** | Build artifact ID when build.artifact is configured. |
 
 <!-- outputs:end -->
 

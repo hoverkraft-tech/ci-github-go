@@ -3,20 +3,12 @@ name: Lint Go
 description: |
   Check gofmt, module tidiness and golangci-lint v2 diagnostics.
 
-  Put project rules in `.golangci.yml`; the default is the standard linter set.
-  The pinned golangci-lint release must support the selected Go version.
-  Use `command` to replace defaults with a trusted Bash program.
-  Custom commands should emit SARIF or Checkstyle for annotations.
-
-  <!-- jscpd:ignore-start -->
-  <!-- Shared setup and reporting guidance for standalone actions. -->
-
-  Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
-
-  Native reports survive command failures and are retained for seven days.
-  See the [continuous integration workflow](../../.github/workflows/continuous-integration.md#reports-and-permissions) for consolidated reporting and permissions.
-
-  <!-- jscpd:ignore-end -->
+  Run setup-go first. Project rules belong in .golangci.yml. All default checks
+  execute even after a failure; SARIF is written into a fresh CI_REPORTS_DIR.
+  Custom commands must write the declared native reports under CI_REPORTS_DIR.
+  Reports are registered before execution and validated afterward, including after
+  failure. Call common ci-reports once after all jobs for annotations and summaries.
+  Producer jobs require actions: read and contents: read.
 author: hoverkraft
 branding:
   icon: package
@@ -29,15 +21,12 @@ inputs:
     description: Pinned golangci-lint v2 release.
     default: v2.15.0
   command:
-    description: Trusted Bash command replacing the default formatting and lint checks. Project configuration remains authoritative.
+    description: Trusted Bash replacement for the default checks. Write declared native reports under CI_REPORTS_DIR; test commands must honor CI_TEST_COVERAGE.
     default: ""
-  report-plan:
-    description: Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.
-    default: ""
+  lint-results:
+    description: Required native report paths relative to CI_REPORTS_DIR, one per line.
+    default: golangci-lint.sarif
 outputs:
-  report-plan:
-    description: Expected lint report metadata. Forward from standalone jobs.
-    value: ${{ steps.report-plan.outputs.report-plan }}
   report-artifact-id:
     description: Native lint report bundle.
     value: ${{ steps.reports.outputs.artifact-id }}
@@ -48,12 +37,6 @@ runs:
       uses: hoverkraft-tech/ci-github-common/actions/working-directory@d606f77fad305ef07dfde3db5270f5e324019c97 # 4.2.4
       with:
         working-directory: ${{ inputs.working-directory }}
-    - id: report-plan
-      uses: hoverkraft-tech/ci-github-common/actions/quality/record-ci-reports@11c842902d003cc4ee2fa1d42f6d80bc6828461a # unified reports (PR #683, unreleased)
-      with:
-        operation: plan
-        report-plan: ${{ inputs.report-plan }}
-        producers: '[{"key":"lint","type":"lint","directory":${{ toJSON(steps.directory.outputs.workspace-relative-path || ''.'') }},"coverage":[]}]'
     - id: golangci
       if: inputs.command == ''
       uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
@@ -61,6 +44,31 @@ runs:
         version: ${{ inputs.golangci-lint-version }}
         install-only: true
         working-directory: ${{ steps.directory.outputs.workspace-relative-path }}
+    - id: definition
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        DIRECTORY: ${{ steps.directory.outputs.workspace-relative-path || '.' }}
+        WORKING_DIRECTORY: ${{ steps.directory.outputs.absolute-path }}
+        GOTOOLCHAIN: local
+        GOWORK: off
+        RESULTS: ${{ inputs.lint-results }}
+      with:
+        script: |
+          const paths = value => {
+            const result = value.split(/\r?\n/).map(item => item.trim()).filter(Boolean);
+            if (!result.length) throw new Error('Required report paths must not be empty.');
+            return result;
+          };
+          const reports = paths(process.env.RESULTS).map(pattern => ({kind: 'lint', pattern}));
+          const options = {cwd:process.env.WORKING_DIRECTORY,silent:true};
+          const runtime = await exec.getExecOutput('go', ['env','GOVERSION'], options);
+          const modulePath = await exec.getExecOutput('go', ['list','-m','-f','{{.Path}}'], options);
+          core.setOutput('definition', {name:'Go lint',project:process.env.DIRECTORY,variant:{runtime:runtime.stdout.trim()},reports,'path-mapping':{[modulePath.stdout.trim()]:process.env.DIRECTORY}});
+    - id: prepare
+      uses: hoverkraft-tech/ci-github-common/actions/quality/record-ci-reports@57ec4a8bf0ab9ea52beea725b5e59895ed39f4f2 # PR #683 (unreleased)
+      with:
+        operation: prepare
+        definition: ${{ steps.definition.outputs.definition }}
     - id: run
       shell: bash
       working-directory: ${{ steps.directory.outputs.absolute-path }}
@@ -68,6 +76,7 @@ runs:
         COMMAND: ${{ inputs.command }}
         GOTOOLCHAIN: local
         GOWORK: "off"
+        CI_REPORTS_DIR: ${{ steps.prepare.outputs.report-directory }}
       run: |
         if [ -n "$COMMAND" ] && ! [[ "$COMMAND" =~ [^[:space:]] ]]; then
           echo "command must not contain only whitespace." >&2
@@ -86,13 +95,13 @@ runs:
           fi
         done < <(find . -type d \( -name vendor -o -name .git -o -name .cache \) -prune -o -type f -name '*.go' -print0)
         go mod tidy -diff || status=1
-        golangci-lint run --timeout=5m --output.sarif.path=golangci-lint.sarif || status=1
+        golangci-lint run --timeout=5m --output.sarif.path="$CI_REPORTS_DIR/golangci-lint.sarif" || status=1
         exit "$status"
     - id: reports
-      name: Record lint results
-      if: ${{ !cancelled() && steps.run.outcome != 'skipped' && steps.report-plan.outcome == 'success' }}
-      uses: hoverkraft-tech/ci-github-common/actions/quality/record-ci-reports@11c842902d003cc4ee2fa1d42f6d80bc6828461a # unified reports (PR #683, unreleased)
+      name: Validate and retain native reports
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+      uses: hoverkraft-tech/ci-github-common/actions/quality/record-ci-reports@57ec4a8bf0ab9ea52beea725b5e59895ed39f4f2 # unified reports (PR #683, unreleased)
       with:
-        working-directory: ${{ steps.directory.outputs.absolute-path }}
-        report-plan: ${{ steps.report-plan.outputs.report-plan }}
-        report-paths: auto:lint
+        operation: finalize
+        recording: ${{ steps.prepare.outputs.recording }}
+        outcome: ${{ steps.run.outcome }}

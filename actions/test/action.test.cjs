@@ -42,3 +42,35 @@ test("test configuration rejects non-boolean coverage configuration", (t) => {
     0,
   );
 });
+
+test("the default command only instruments the primary runtime and writes fresh native outputs", (t) => {
+  const directory = createWorkspace(t);
+  const log = path.join(directory, "arguments.json");
+  fs.writeFileSync(
+    path.join(directory, "go"),
+    `#!/usr/bin/env node\nrequire("node:fs").writeFileSync(process.env.ARGUMENT_LOG,JSON.stringify(process.argv.slice(2)));\n`,
+    { mode: 0o700 },
+  );
+  for (const coverage of ["true", "false"]) {
+    const result = runActionStep(actionFile, "run", directory, {
+      COMMAND: "",
+      RACE: "true",
+      GOTESTSUM_VERSION: "v1.13.0",
+      CI_TEST_COVERAGE: coverage,
+      CI_REPORTS_DIR: path.join(directory, "fresh reports"),
+      PATH: `${directory}:${process.env.PATH}`,
+      ARGUMENT_LOG: log,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const args = JSON.parse(fs.readFileSync(log, "utf8"));
+    assert.ok(
+      args.includes(`--junitfile=${directory}/fresh reports/junit.xml`),
+    );
+    assert.equal(
+      args.includes(`-coverprofile=${directory}/fresh reports/coverage.out`),
+      coverage === "true",
+    );
+    assert.equal(args.includes("-covermode=atomic"), coverage === "true");
+    assert.ok(args.includes("-race"));
+  }
+});

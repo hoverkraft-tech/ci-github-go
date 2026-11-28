@@ -23,15 +23,16 @@
 
 ## Overview
 
-Run Go tests and retain native test and coverage reports.
+Run Go tests with detailed JUnit results on every runtime and optional native coverage.
 
-Use the matching setup action first. Commands must generate JUnit reports.
-Coverage collection requires Cobertura XML. The test command controls instrumentation.
+Run setup-go first. Defaults write junit.xml and coverage.out into a fresh
+CI_REPORTS_DIR. Coverage instrumentation is disabled when coverage is false.
+Custom commands receive CI_REPORTS_DIR and CI_TEST_COVERAGE.
 
-Forward report-plan from standalone jobs, or use the reusable CI workflow, which
-exposes the complete expected plan automatically. Choose external coverage
-publication once in the common ci-reports workflow. This action posts no comments
-and needs no publication permissions. Available reports survive test failures.
+Required outputs are registered before execution and validated after success or
+failure. The Go profile retains native statement counts. Select publication once
+in common ci-reports after all jobs; no report outputs need forwarding.
+Producer jobs require actions: read and contents: read.
 
 <!-- overview:end -->
 
@@ -43,28 +44,30 @@ and needs no publication permissions. Available reports survive test failures.
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/test@0814116d658bad2bf0f56c9e61b492a46b43dd88 # feat/native-github-coverage
+- uses: hoverkraft-tech/ci-github-go/actions/test@b529d39b7c3b358eb6f3ed52fadd5b6ae5438ece # feat/native-github-coverage
   with:
     # Go module directory.
     # Default: `.`
     working-directory: .
 
-    # Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.
+    # Trusted Bash replacement for the default checks. Write declared native reports under CI_REPORTS_DIR; test commands must honor CI_TEST_COVERAGE.
     command: ""
 
     # Enable the race detector for the default command. Requires CGO and a C compiler.
     # Default: `true`
     race: "true"
 
-    # Optional JSON array of Cobertura file, language and label. Empty uses cobertura.xml and the project directory as its stable label.
-    coverage-reports: ""
-
-    # Require and collect Cobertura coverage. Set false to retain only available native diagnostics. Instrumentation is controlled by the test command.
+    # Collect native Go coverage. The default command disables instrumentation when false.
     # Default: `true`
     coverage: "true"
 
-    # Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.
-    report-plan: ""
+    # Required native report paths relative to CI_REPORTS_DIR, one per line.
+    # Default: `junit.xml`
+    test-results: junit.xml
+
+    # Required native Go coverage profile paths relative to CI_REPORTS_DIR when coverage is enabled.
+    # Default: `coverage.out`
+    test-coverage: coverage.out
 ```
 
 <!-- usage:end -->
@@ -73,14 +76,14 @@ and needs no publication permissions. Available reports survive test failures.
 
 ## Inputs
 
-| **Input**               | **Description**                                                                                                                                   | **Required** | **Default** |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
-| **`working-directory`** | Go module directory.                                                                                                                              | **false**    | `.`         |
-| **`command`**           | Trusted Bash command replacing the default test command. Generate junit.xml and coverage.out for reporting.                                       | **false**    | -           |
-| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                                                  | **false**    | `true`      |
-| **`coverage-reports`**  | Optional JSON array of Cobertura file, language and label. Empty uses cobertura.xml and the project directory as its stable label.                | **false**    | -           |
-| **`coverage`**          | Require and collect Cobertura coverage. Set false to retain only available native diagnostics. Instrumentation is controlled by the test command. | **false**    | `true`      |
-| **`report-plan`**       | Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.                                               | **false**    | -           |
+| **Input**               | **Description**                                                                                                                                 | **Required** | **Default**    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | -------------- |
+| **`working-directory`** | Go module directory.                                                                                                                            | **false**    | `.`            |
+| **`command`**           | Trusted Bash replacement for the default checks. Write declared native reports under CI_REPORTS_DIR; test commands must honor CI_TEST_COVERAGE. | **false**    | -              |
+| **`race`**              | Enable the race detector for the default command. Requires CGO and a C compiler.                                                                | **false**    | `true`         |
+| **`coverage`**          | Collect native Go coverage. The default command disables instrumentation when false.                                                            | **false**    | `true`         |
+| **`test-results`**      | Required native report paths relative to CI_REPORTS_DIR, one per line.                                                                          | **false**    | `junit.xml`    |
+| **`test-coverage`**     | Required native Go coverage profile paths relative to CI_REPORTS_DIR when coverage is enabled.                                                  | **false**    | `coverage.out` |
 
 <!-- inputs:end -->
 
@@ -93,7 +96,6 @@ and needs no publication permissions. Available reports survive test failures.
 
 | **Output**               | **Description**                                                       |
 | ------------------------ | --------------------------------------------------------------------- |
-| **`report-plan`**        | Expected report metadata. Forward from standalone jobs.               |
 | **`report-artifact-id`** | Native report bundle, including available diagnostics after failures. |
 
 <!-- outputs:end -->

@@ -1,11 +1,10 @@
----
 name: Internal - Common Continuous Integration tasks
 "on":
   workflow_call: null
 permissions: {}
 jobs:
   linter:
-    uses: hoverkraft-tech/ci-github-common/.github/workflows/linter.yml@11c842902d003cc4ee2fa1d42f6d80bc6828461a # unified reports (PR #683, unreleased)
+    uses: hoverkraft-tech/ci-github-common/.github/workflows/linter.yml@57ec4a8bf0ab9ea52beea725b5e59895ed39f4f2 # PR #683 (unreleased)
     permissions:
       contents: read
       statuses: write
@@ -23,13 +22,13 @@ jobs:
     uses: $/.github/workflows/__test-workflow-continuous-integration.yml
     permissions:
       contents: read
-      pull-requests: write
       id-token: write
-      code-quality: write
+      actions: read
   test-action-setup-go:
     uses: $/.github/workflows/__test-action-setup-go.yml
     permissions:
       contents: read
+      actions: read
   test-action-lint:
     uses: $/.github/workflows/__test-action-lint.yml
     permissions:
@@ -44,7 +43,29 @@ jobs:
     uses: $/.github/workflows/__test-action-audit.yml
     permissions:
       contents: read
+      actions: read
   test-action-build:
     uses: $/.github/workflows/__test-action-build.yml
     permissions:
       contents: read
+      actions: read
+  reports:
+    if: ${{ !cancelled() }}
+    needs:
+      - linter
+      - test
+      - test-action-setup-go
+      - test-action-lint
+      - test-action-test
+      - test-action-audit
+      - test-action-build
+    uses: hoverkraft-tech/ci-github-common/.github/workflows/ci-reports.yml@57ec4a8bf0ab9ea52beea725b5e59895ed39f4f2 # PR #683 (unreleased)
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      code-quality: write
+      id-token: write
+      security-events: write
+    with:
+      job-results: ${{ toJSON(needs) }}

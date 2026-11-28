@@ -25,20 +25,12 @@
 
 Check gofmt, module tidiness and golangci-lint v2 diagnostics.
 
-Put project rules in `.golangci.yml`; the default is the standard linter set.
-The pinned golangci-lint release must support the selected Go version.
-Use `command` to replace defaults with a trusted Bash program.
-Custom commands should emit SARIF or Checkstyle for annotations.
-
-<!-- jscpd:ignore-start -->
-<!-- Shared setup and reporting guidance for standalone actions. -->
-
-Run [setup-go](../setup-go/README.md) first with the same `working-directory`.
-
-Native reports survive command failures and are retained for seven days.
-See the [continuous integration workflow](../../.github/workflows/continuous-integration.md#reports-and-permissions) for consolidated reporting and permissions.
-
-<!-- jscpd:ignore-end -->
+Run setup-go first. Project rules belong in .golangci.yml. All default checks
+execute even after a failure; SARIF is written into a fresh CI_REPORTS_DIR.
+Custom commands must write the declared native reports under CI_REPORTS_DIR.
+Reports are registered before execution and validated afterward, including after
+failure. Call common ci-reports once after all jobs for annotations and summaries.
+Producer jobs require actions: read and contents: read.
 
 <!-- overview:end -->
 
@@ -50,7 +42,7 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 ## Usage
 
 ```yaml
-- uses: hoverkraft-tech/ci-github-go/actions/lint@0814116d658bad2bf0f56c9e61b492a46b43dd88 # feat/native-github-coverage
+- uses: hoverkraft-tech/ci-github-go/actions/lint@b529d39b7c3b358eb6f3ed52fadd5b6ae5438ece # feat/native-github-coverage
   with:
     # Go module directory.
     # Default: `.`
@@ -60,11 +52,12 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
     # Default: `v2.15.0`
     golangci-lint-version: v2.15.0
 
-    # Trusted Bash command replacing the default formatting and lint checks. Project configuration remains authoritative.
+    # Trusted Bash replacement for the default checks. Write declared native reports under CI_REPORTS_DIR; test commands must honor CI_TEST_COVERAGE.
     command: ""
 
-    # Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.
-    report-plan: ""
+    # Required native report paths relative to CI_REPORTS_DIR, one per line.
+    # Default: `golangci-lint.sarif`
+    lint-results: golangci-lint.sarif
 ```
 
 <!-- usage:end -->
@@ -73,12 +66,12 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Inputs
 
-| **Input**                   | **Description**                                                                                                     | **Required** | **Default** |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------ | ----------- |
-| **`working-directory`**     | Go module directory.                                                                                                | **false**    | `.`         |
-| **`golangci-lint-version`** | Pinned golangci-lint v2 release.                                                                                    | **false**    | `v2.15.0`   |
-| **`command`**               | Trusted Bash command replacing the default formatting and lint checks. Project configuration remains authoritative. | **false**    | -           |
-| **`report-plan`**           | Expected producer metadata supplied by reusable workflows. Leave empty for a standalone invocation.                 | **false**    | -           |
+| **Input**                   | **Description**                                                                                                                                 | **Required** | **Default**           |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------------------- |
+| **`working-directory`**     | Go module directory.                                                                                                                            | **false**    | `.`                   |
+| **`golangci-lint-version`** | Pinned golangci-lint v2 release.                                                                                                                | **false**    | `v2.15.0`             |
+| **`command`**               | Trusted Bash replacement for the default checks. Write declared native reports under CI_REPORTS_DIR; test commands must honor CI_TEST_COVERAGE. | **false**    | -                     |
+| **`lint-results`**          | Required native report paths relative to CI_REPORTS_DIR, one per line.                                                                          | **false**    | `golangci-lint.sarif` |
 
 <!-- inputs:end -->
 
@@ -89,10 +82,9 @@ See the [continuous integration workflow](../../.github/workflows/continuous-int
 
 ## Outputs
 
-| **Output**               | **Description**                                              |
-| ------------------------ | ------------------------------------------------------------ |
-| **`report-plan`**        | Expected lint report metadata. Forward from standalone jobs. |
-| **`report-artifact-id`** | Native lint report bundle.                                   |
+| **Output**               | **Description**            |
+| ------------------------ | -------------------------- |
+| **`report-artifact-id`** | Native lint report bundle. |
 
 <!-- outputs:end -->
 
